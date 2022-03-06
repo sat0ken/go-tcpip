@@ -1,5 +1,10 @@
 package main
 
+import (
+	"log"
+	"syscall"
+)
+
 type ICMP struct {
 	Type           []byte
 	Code           []byte
@@ -9,9 +14,9 @@ type ICMP struct {
 	Data           []byte
 }
 
-func (ICMP) Create() ICMP {
+func (*ICMP) Create() ICMP {
 	// https://www.infraexpert.com/study/tcpip4.html
-	return ICMP{
+	icmp := ICMP{
 		// ping request
 		Type:           []byte{0x08},
 		Code:           []byte{0x00},
@@ -27,5 +32,65 @@ func (ICMP) Create() ICMP {
 			0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
 			0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
 		},
+	}
+	// checksumを計算したらセットしてreturnする
+	icmpsum := sumByteArr(toByteArr(icmp))
+	icmp.CheckSum = calcChecksum(icmpsum)
+
+	return icmp
+}
+
+func (*ICMP) Send(ifindex int, packet []byte) ICMP {
+	addr := syscall.SockaddrLinklayer{
+		Protocol: syscall.ETH_P_IP,
+		Ifindex:  ifindex,
+	}
+
+	sendfd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(htons(syscall.ETH_P_ALL)))
+	if err != nil {
+		log.Fatalf("create icmp sendfd err : %v\n", err)
+	}
+
+	recvfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_ICMP)
+	if err != nil {
+		log.Fatalf("create icmp recvfd err : %v\n", err)
+	}
+
+	err = syscall.Bind(recvfd, &syscall.SockaddrInet4{
+		Addr: [4]byte{0xc0, 0xa8, 0x00, 0x06},
+	})
+	if err != nil {
+		log.Fatalf("bind err : %v\n", err)
+	}
+
+	err = syscall.Sendto(sendfd, packet, 0, &addr)
+	if err != nil {
+		log.Fatalf("Send to err : %v\n", err)
+	}
+
+	for {
+		recvBuf := make([]byte, 1500)
+		read, sockaddr, err := syscall.Recvfrom(recvfd, recvBuf, 0)
+		_ = read
+		_ = sockaddr
+		if err != nil {
+			log.Fatalf("read err : %v", err)
+		}
+		// IPヘッダのProtocolがICMPであることをチェック
+		if recvBuf[9] == 0x01 {
+			// IPヘッダが20byteなので21byte目からがICMPパケット
+			return parseICMP(recvBuf[21:])
+		}
+	}
+}
+
+func parseICMP(packet []byte) ICMP {
+	return ICMP{
+		Type:           []byte{packet[0]},
+		Code:           []byte{packet[1]},
+		CheckSum:       []byte{packet[2], packet[3]},
+		Identification: []byte{packet[4], packet[5]},
+		SequenceNumber: []byte{packet[6], packet[7]},
+		Data:           packet[8:],
 	}
 }

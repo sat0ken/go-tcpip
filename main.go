@@ -3,67 +3,38 @@ package main
 import (
 	"fmt"
 	"log"
-	"syscall"
 )
 
 func main() {
-	//ICMPを作成
-	var icmp ICMP
-	icmpPacket := icmp.Create()
-	icmpsum := sumByteArr(toByteArr(icmpPacket))
-	icmpPacket.CheckSum = calcChecksum(icmpsum)
 
-	// IPヘッダを作成
-	var ip IPHeader
-	header := ip.Create()
-	sum := sumByteArr(toByteArr(header))
-	header.HeaderCheckSum = calcChecksum(sum)
-
-	// TotalLengthをセット
-	header.TotalPacketLength = uintTo2byte(toByteLen(header) + toByteLen(icmpPacket))
+	localif, err := getLocalIpAddr("wlp4s0")
+	if err != nil {
+		log.Fatalf("getLocalIpAddr err : %v", err)
+	}
 
 	var ethernet EthernetFrame
-	var sendbyte []byte
-	sendbyte = append(sendbyte, toByteArr(ethernet.Create())...)
-	sendbyte = append(sendbyte, toByteArr(header)...)
-	sendbyte = append(sendbyte, toByteArr(icmpPacket)...)
+	var arp Arp
+	arpPacket := arp.Request(localif)
 
-	fmt.Printf("TotalLEngth : %d\n", header.TotalPacketLength)
+	var sendArp []byte
+	sendArp = append(sendArp, toByteArr(ethernet.Create([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, localif.LocalMacAddr, "ARP"))...)
+	sendArp = append(sendArp, toByteArr(arpPacket)...)
 
-	fmt.Println("---check ip header---")
-	checktoByteArr(header)
-	fmt.Println("---check icmp packet---")
-	checktoByteArr(icmpPacket)
-	for _, v := range sendbyte {
-		fmt.Printf("%x ", v)
-	}
-	fmt.Println()
+	arpreply := arp.Send(localif.Index, sendArp)
+	fmt.Printf("ARP Reply : %+v\n", arpreply)
 
-	//conn, err := net.Dial("ip4:icmp", "1.1.1.1")
-	//if err != nil {
-	//	log.Fatalf("net dial err : %s", err)
-	//}
-	//_, err = conn.Write(sendbyte)
-	//if err != nil {
-	//	log.Fatalf("write err : %s", err)
-	//}
+	var icmp ICMP
+	var ip IPHeader
+	var sendIcmp []byte
 
-	//addr := syscall.SockaddrInet4{
-	//	Port: 0,
-	//	Addr: [4]byte{1, 1, 1, 1},
-	//}
-	addr := syscall.SockaddrLinklayer{
-		Protocol: syscall.ETH_P_ARP,
-		Ifindex:  3,
-		Hatype:   syscall.ARPHRD_ETHER,
-	}
+	icmpPacket := icmp.Create()
+	header := ip.Create(localif.LocalIpAddr)
+	header.TotalPacketLength = uintTo2byte(toByteLen(header) + toByteLen(icmpPacket))
 
-	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, syscall.ETH_P_ALL)
-	if err != nil {
-		log.Fatalf("fd err : %v\n", err)
-	}
-	err = syscall.Sendto(fd, sendbyte, 0, &addr)
-	if err != nil {
-		log.Fatalf("Send to err : %v\n", err)
-	}
+	sendIcmp = append(sendIcmp, toByteArr(ethernet.Create(arpreply.SenderMacAddr, localif.LocalMacAddr, "IPv4"))...)
+	sendIcmp = append(sendIcmp, toByteArr(header)...)
+	sendIcmp = append(sendIcmp, toByteArr(icmpPacket)...)
+
+	icmpreply := icmp.Send(localif.Index, sendIcmp)
+	fmt.Printf("ICMP Reply : %+v\n", icmpreply)
 }
