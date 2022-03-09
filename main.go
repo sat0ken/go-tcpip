@@ -6,35 +6,40 @@ import (
 )
 
 func main() {
+	localmac := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
-	localif, err := getLocalIpAddr("wlp4s0")
+	localif, err := getLocalIpAddr("lo")
 	if err != nil {
 		log.Fatalf("getLocalIpAddr err : %v", err)
 	}
-
-	var ethernet EthernetFrame
-	var arp Arp
-	arpPacket := arp.Request(localif)
-
-	var sendArp []byte
-	sendArp = append(sendArp, toByteArr(ethernet.Create([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, localif.LocalMacAddr, "ARP"))...)
-	sendArp = append(sendArp, toByteArr(arpPacket)...)
-
-	arpreply := arp.Send(localif.Index, sendArp)
-	fmt.Printf("ARP Reply : %+v\n", arpreply)
-
-	var icmp ICMP
+	fmt.Printf("%+v\n", localif)
 	var ip IPHeader
-	var sendIcmp []byte
+	ipheader := ip.Create(localif.LocalIpAddr, localif.LocalIpAddr, "UDP")
 
-	icmpPacket := icmp.Create()
-	header := ip.Create(localif.LocalIpAddr)
-	header.TotalPacketLength = uintTo2byte(toByteLen(header) + toByteLen(icmpPacket))
+	var udp UDPHeader
+	udppacket := udp.Create([]byte{0xa6, 0xe9}, []byte{0x30, 0x39})
+	udpdata := []byte(`hogehoge`)
 
-	sendIcmp = append(sendIcmp, toByteArr(ethernet.Create(arpreply.SenderMacAddr, localif.LocalMacAddr, "IPv4"))...)
-	sendIcmp = append(sendIcmp, toByteArr(header)...)
-	sendIcmp = append(sendIcmp, toByteArr(icmpPacket)...)
+	ipheader.TotalPacketLength = uintTo2byte(uint16(20) + toByteLen(udppacket) + uint16(len(udpdata)))
+	udppacket.PacketLenth = uintTo2byte(toByteLen(udppacket) + uint16(len(udpdata)))
 
-	icmpreply := icmp.Send(localif.Index, sendIcmp)
-	fmt.Printf("ICMP Reply : %+v\n", icmpreply)
+	var dummy DummyHeader
+	dummyHeader := dummy.Create(ipheader)
+	dummyHeader.PacketLenth = udp.PacketLenth
+
+	sum := sumByteArr(toByteArr(dummy))
+	sum += sumByteArr(toByteArr(udppacket))
+	sum += sumByteArr(udpdata)
+
+	udppacket.Checksum = calcChecksum(sum)
+
+	var eth EthernetFrame
+	var packet []byte
+	packet = append(packet, toByteArr(eth.Create(localmac, localmac, "IPv4"))...)
+	packet = append(packet, toByteArr(ipheader)...)
+	packet = append(packet, toByteArr(udppacket)...)
+	packet = append(packet, udpdata...)
+
+	printByteArr(packet)
+	udp.Send(packet)
 }

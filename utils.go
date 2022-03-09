@@ -24,7 +24,8 @@ func getLocalIpAddr(ifname string) (localif LocalIpMacAddr, err error) {
 		return localif, err
 	}
 	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+		//if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+		if ipnet, ok := addr.(*net.IPNet); ok {
 			if ipnet.IP.To4() != nil {
 				localif.LocalIpAddr = ipnet.IP.To4()
 			}

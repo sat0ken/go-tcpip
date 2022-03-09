@@ -19,7 +19,7 @@ func ping() {
 
 	// IPヘッダを作成
 	var ip IPHeader
-	header := ip.Create(ipAddr.LocalIpAddr)
+	header := ip.Create(ipAddr.LocalIpAddr, []byte{0xc0, 0xa8, 0x00, 0x0f}, "IP")
 	sum := sumByteArr(toByteArr(header))
 	header.HeaderCheckSum = calcChecksum(sum)
 
