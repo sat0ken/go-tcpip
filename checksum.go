@@ -7,6 +7,13 @@ import (
 	"strconv"
 )
 
+func printByteArr(arr []byte) {
+	for _, v := range arr {
+		fmt.Printf("%x ", v)
+	}
+	fmt.Println()
+}
+
 func sumByteArr(arr []byte) uint {
 	var sum uint
 	for i := 0; i < len(arr); i++ {
@@ -34,9 +41,21 @@ func checktoByteArr(value interface{}) {
 
 func toByteArr(value interface{}) []byte {
 	rv := reflect.ValueOf(value)
+	//rt := rv.Type()
 	var arr []byte
 
 	for i := 0; i < rv.NumField(); i++ {
+		//field := rt.Field(i)
+		//switch rv.Field(i).Interface().(type) {
+		//case []uint8:
+		//	fmt.Printf("%s\n", field.Name)
+		//	b := rv.Field(i).Interface().([]uint8)
+		//	fmt.Printf("%s 0x%x : %b\n", field.Name, b, b)
+		//case [2]uint8:
+		//	fmt.Printf("%s\n", field.Name)
+		//	b := rv.Field(i).Interface().([2]uint8)
+		//	fmt.Printf("%s 0x%x : %b\n", field.Name, b, b)
+		//}
 		b := rv.Field(i).Interface().([]byte)
 		arr = append(arr, b...)
 	}

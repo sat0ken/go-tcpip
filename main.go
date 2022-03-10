@@ -3,67 +3,43 @@ package main
 import (
 	"fmt"
 	"log"
-	"syscall"
 )
 
 func main() {
-	//ICMPを作成
-	var icmp ICMP
-	icmpPacket := icmp.Create()
-	icmpsum := sumByteArr(toByteArr(icmpPacket))
-	icmpPacket.CheckSum = calcChecksum(icmpsum)
+	localmac := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
-	// IPヘッダを作成
+	localif, err := getLocalIpAddr("lo")
+	if err != nil {
+		log.Fatalf("getLocalIpAddr err : %v", err)
+	}
+	fmt.Printf("%+v\n", localif)
 	var ip IPHeader
-	header := ip.Create()
-	sum := sumByteArr(toByteArr(header))
-	header.HeaderCheckSum = calcChecksum(sum)
+	ipheader := ip.Create(localif.LocalIpAddr, localif.LocalIpAddr, "UDP")
 
-	// TotalLengthをセット
-	header.TotalPacketLength = uintTo2byte(toByteLen(header) + toByteLen(icmpPacket))
+	var udp UDPHeader
+	udppacket := udp.Create([]byte{0xa6, 0xe9}, []byte{0x30, 0x39})
+	udpdata := []byte(`hogehoge`)
 
-	var ethernet EthernetFrame
-	var sendbyte []byte
-	sendbyte = append(sendbyte, toByteArr(ethernet.Create())...)
-	sendbyte = append(sendbyte, toByteArr(header)...)
-	sendbyte = append(sendbyte, toByteArr(icmpPacket)...)
+	ipheader.TotalPacketLength = uintTo2byte(uint16(20) + toByteLen(udppacket) + uint16(len(udpdata)))
+	udppacket.PacketLenth = uintTo2byte(toByteLen(udppacket) + uint16(len(udpdata)))
 
-	fmt.Printf("TotalLEngth : %d\n", header.TotalPacketLength)
+	var dummy DummyHeader
+	dummyHeader := dummy.Create(ipheader)
+	dummyHeader.PacketLenth = udp.PacketLenth
 
-	fmt.Println("---check ip header---")
-	checktoByteArr(header)
-	fmt.Println("---check icmp packet---")
-	checktoByteArr(icmpPacket)
-	for _, v := range sendbyte {
-		fmt.Printf("%x ", v)
-	}
-	fmt.Println()
+	sum := sumByteArr(toByteArr(dummy))
+	sum += sumByteArr(toByteArr(udppacket))
+	sum += sumByteArr(udpdata)
 
-	//conn, err := net.Dial("ip4:icmp", "1.1.1.1")
-	//if err != nil {
-	//	log.Fatalf("net dial err : %s", err)
-	//}
-	//_, err = conn.Write(sendbyte)
-	//if err != nil {
-	//	log.Fatalf("write err : %s", err)
-	//}
+	udppacket.Checksum = calcChecksum(sum)
 
-	//addr := syscall.SockaddrInet4{
-	//	Port: 0,
-	//	Addr: [4]byte{1, 1, 1, 1},
-	//}
-	addr := syscall.SockaddrLinklayer{
-		Protocol: syscall.ETH_P_ARP,
-		Ifindex:  3,
-		Hatype:   syscall.ARPHRD_ETHER,
-	}
+	var eth EthernetFrame
+	var packet []byte
+	packet = append(packet, toByteArr(eth.Create(localmac, localmac, "IPv4"))...)
+	packet = append(packet, toByteArr(ipheader)...)
+	packet = append(packet, toByteArr(udppacket)...)
+	packet = append(packet, udpdata...)
 
-	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, syscall.ETH_P_ALL)
-	if err != nil {
-		log.Fatalf("fd err : %v\n", err)
-	}
-	err = syscall.Sendto(fd, sendbyte, 0, &addr)
-	if err != nil {
-		log.Fatalf("Send to err : %v\n", err)
-	}
+	printByteArr(packet)
+	udp.Send(packet)
 }
