@@ -6,10 +6,25 @@ type TCPHeader struct {
 	DestPort         []byte
 	SequenceNumber   []byte
 	AcknowlegeNumber []byte
-	DataOffset       []byte
+	HeaderLength     []byte
 	ControlFlags     []byte
 	WindowSize       []byte
 	Checksum         []byte
 	UrgentPointer    []byte
-	Options          []byte
+	TCPOptionByte    []byte
+}
+
+func (*TCPHeader) CreateSyn(sourceport, destport []byte) TCPHeader {
+	return TCPHeader{
+		SourcePort:       sourceport,
+		DestPort:         destport,
+		SequenceNumber:   []byte{0x00, 0x00, 0x00, 0x00},
+		AcknowlegeNumber: []byte{0x00, 0x00, 0x00, 0x00},
+		HeaderLength:     []byte{0x00},
+		ControlFlags:     []byte{0x00},
+		WindowSize:       []byte{0xff, 0xff},
+		Checksum:         []byte{0x00, 0x00},
+		UrgentPointer:    []byte{0x00, 0x00},
+		TCPOptionByte:    []byte{0x00},
+	}
 }
