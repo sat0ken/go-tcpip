@@ -25,6 +25,5 @@ func (*TCPHeader) CreateSyn(sourceport, destport []byte) TCPHeader {
 		WindowSize:       []byte{0xff, 0xff},
 		Checksum:         []byte{0x00, 0x00},
 		UrgentPointer:    []byte{0x00, 0x00},
-		TCPOptionByte:    []byte{0x00},
 	}
 }
