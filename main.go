@@ -8,38 +8,31 @@ import (
 func main() {
 	localmac := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
+	_ = localmac
+
 	localif, err := getLocalIpAddr("lo")
 	if err != nil {
 		log.Fatalf("getLocalIpAddr err : %v", err)
 	}
-	fmt.Printf("%+v\n", localif)
+	//fmt.Printf("%+v\n", localif)
 	var ip IPHeader
-	ipheader := ip.Create(localif.LocalIpAddr, localif.LocalIpAddr, "UDP")
+	ipheader := ip.Create(localif.LocalIpAddr, localif.LocalIpAddr, "TCP")
 
-	var udp UDPHeader
-	udppacket := udp.Create([]byte{0xa6, 0xe9}, []byte{0x30, 0x39})
-	udpdata := []byte(`hogehoge`)
+	var tcp TCPHeader
+	tcpheader := tcp.CreateSyn([]byte{0xa6, 0xe9}, []byte{0x30, 0x39})
 
-	ipheader.TotalPacketLength = uintTo2byte(uint16(20) + toByteLen(udppacket) + uint16(len(udpdata)))
-	udppacket.PacketLenth = uintTo2byte(toByteLen(udppacket) + uint16(len(udpdata)))
+	tcpOptions := struct {
+		MaxSize       []byte
+		SackPermitted []byte
+		Timestamps    []byte
+		NoOperation   []byte
+		WindowScale   []byte
+	}{
+		SackPermitted: []byte{0x04, 0x02},
+		NoOperation:   []byte{0x01},
+		WindowScale:   []byte{0x03, 0x03, 0x07},
+	}
+	
+	fmt.Printf("%+v\n", ip)
 
-	var dummy DummyHeader
-	dummyHeader := dummy.Create(ipheader)
-	dummyHeader.PacketLenth = udp.PacketLenth
-
-	sum := sumByteArr(toByteArr(dummy))
-	sum += sumByteArr(toByteArr(udppacket))
-	sum += sumByteArr(udpdata)
-
-	udppacket.Checksum = calcChecksum(sum)
-
-	var eth EthernetFrame
-	var packet []byte
-	packet = append(packet, toByteArr(eth.Create(localmac, localmac, "IPv4"))...)
-	packet = append(packet, toByteArr(ipheader)...)
-	packet = append(packet, toByteArr(udppacket)...)
-	packet = append(packet, udpdata...)
-
-	printByteArr(packet)
-	udp.Send(packet)
 }
