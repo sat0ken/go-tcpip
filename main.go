@@ -3,48 +3,137 @@ package main
 import (
 	"fmt"
 	"log"
+	"syscall"
 )
+
+func _main() {
+	recvfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
+	if err != nil {
+		log.Fatalf("create icmp recvfd err : %v\n", err)
+	}
+	err = syscall.Bind(recvfd, &syscall.SockaddrInet4{
+		Addr: [4]byte{0x7f, 0x00, 0x00, 0x01},
+	})
+	if err != nil {
+		log.Fatalf("bind err : %v\n", err)
+	}
+	for {
+		recvBuf := make([]byte, 128)
+		read, sockaddr, err := syscall.Recvfrom(recvfd, recvBuf, 0)
+		_ = read
+		_ = sockaddr
+		if err != nil {
+			log.Fatalf("read err : %v", err)
+		}
+		// IPヘッダのProtocolがICMPであることをチェック
+		if recvBuf[9] == 0x06 {
+			parseTCP(recvBuf[20:])
+			//fmt.Printf("%x\n", recvBuf[20:])
+			// IPヘッダが20byteなので21byte目からがTCPパケット
+			//if recvBuf[21] == 0x1f && recvBuf[22] == 0x90 {
+			//	//parseTCP(recvBuf[21:])
+			//	fmt.Printf("%x\n", recvBuf[21:])
+			//}
+		}
+	}
+}
 
 func main() {
 	localmac := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-
-	_ = localmac
-
 	localif, err := getLocalIpAddr("lo")
 	if err != nil {
 		log.Fatalf("getLocalIpAddr err : %v", err)
 	}
-	//fmt.Printf("%+v\n", localif)
-	var ip IPHeader
-	ipheader := ip.Create(localif.LocalIpAddr, localif.LocalIpAddr, "TCP")
-	fmt.Printf("%+v\n", ipheader)
 
-	var tcp TCPHeader
-	tcpheader := tcp.CreateSyn([]byte{0xa6, 0xe9}, []byte{0x30, 0x39})
-	fmt.Printf("%+v\n", tcpheader)
+	var ethernet EthernetFrame
+	ethernet = ethernet.Create(localmac, localmac, "IPv4")
 
-	// https://milestone-of-se.nesuke.com/nw-basic/tcp-udp/tcp-option/
-	tcpOptions := struct {
-		MaxsSegmentSize []byte
-		SackPermitted   []byte
-		Timestamps      []byte
-		NoOperation     []byte
-		WindowScale     []byte
-	}{
-		// オプション番号2, Length, 値(2byte)
-		MaxsSegmentSize: []byte{0x02, 0x04, 0x05, 0xb4},
-		// オプション番号4, Length
-		SackPermitted: []byte{0x04, 0x02},
-		// オプション番号1
-		NoOperation: []byte{0x01},
-		// オプション番号3, Length, 値(1byte)
-		WindowScale: []byte{0x03, 0x03, 0x07},
-		// オプション番号8, Length, Timestamp value(4byte), echo reply(4byte)
-		Timestamps: []byte{0x08, 0x10, 0x57, 0x4b, 0x85, 0xcf, 0x00, 0x00, 0x00, 0x00},
+	var ipheader IPHeader
+	ipheader = ipheader.Create(localif.LocalIpAddr, localif.LocalIpAddr, "TCP")
+
+	var tcpheader TCPHeader
+	// 8080
+	tcpheader = tcpheader.CreateSyn([]byte{0xa6, 0xe9}, []byte{0x1f, 0x90})
+	//tcpheader = tcpheader.CreateSyn([]byte{0xa6, 0xe9}, []byte{0x30, 0x39})
+
+	var tcpOption TCPOpstions
+	tcpOption = tcpOption.Create()
+
+	// IP=20byte + tcpヘッダの長さ + tcpオプションの長さ
+	ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader) + toByteLen(tcpOption))
+
+	num := toByteLen(tcpheader) + toByteLen(tcpOption)
+	tcpheader.HeaderLength = []byte{byte(num << 2)}
+
+	var dummy DummyHeader
+	dummyHeader := dummy.Create(ipheader)
+	dummyHeader.PacketLenth = tcpheader.HeaderLength
+
+	sum := sumByteArr(toByteArr(dummy))
+	sum += sumByteArr(toByteArr(tcpheader))
+	sum += sumByteArr(toByteArr(tcpOption))
+
+	tcpheader.Checksum = calcChecksum(sum)
+
+	var sendTcpSyn []byte
+	sendTcpSyn = append(sendTcpSyn, toByteArr(ethernet)...)
+	sendTcpSyn = append(sendTcpSyn, toByteArr(ipheader)...)
+	sendTcpSyn = append(sendTcpSyn, toByteArr(tcpheader)...)
+	sendTcpSyn = append(sendTcpSyn, toByteArr(tcpOption)...)
+
+	//addr := syscall.SockaddrInet4{
+	//	Addr: [4]byte{0x7f, 0x00, 0x00, 0x01},
+	//	Port: 8080,
+	//}
+	addr := syscall.SockaddrLinklayer{
+		Protocol: syscall.ETH_P_IP,
+		Ifindex:  1,
 	}
 
-	fmt.Printf("%+v\n", tcpOptions)
-	fmt.Printf("%d\n", toByteLen(tcpheader))
-	fmt.Printf("%d\n", toByteLen(tcpOptions))
+	sendfd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(htons(syscall.ETH_P_ALL)))
+	//sendfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
+	if err != nil {
+		log.Fatalf("create tcp sendfd err : %v\n", err)
+	}
+	syscall.SetsockoptInt(sendfd, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1)
 
+	recvfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
+	if err != nil {
+		log.Fatalf("create tcp recvfd err : %v\n", err)
+	}
+	err = syscall.Bind(recvfd, &syscall.SockaddrInet4{
+		Addr: [4]byte{0x7f, 0x00, 0x00, 0x01},
+		Port: 42279,
+	})
+	if err != nil {
+		log.Fatalf("bind err : %v\n", err)
+	}
+
+	//err = syscall.Sendto(sendfd, sendTcpSyn, 0, &addr)
+	//if err != nil {
+	//	log.Fatalf("Send to err : %v\n", err)
+	//}
+	err = syscall.Sendto(sendfd, sendTcpSyn, 0, &addr)
+	if err != nil {
+		log.Fatalf("Send to err : %v\n", err)
+	}
+
+	for {
+		recvBuf := make([]byte, 128)
+		read, sockaddr, err := syscall.Recvfrom(recvfd, recvBuf, 0)
+		_ = read
+		_ = sockaddr
+		if err != nil {
+			log.Fatalf("read err : %v", err)
+		}
+		// IPヘッダのProtocolがTCPであることをチェック
+		fmt.Printf("%x\n", recvBuf[20:])
+		//if recvBuf[9] == 0x06 {
+		//	// IPヘッダが20byteなので21byte目からがTCPパケット
+		//	parseTCP(recvBuf[20:])
+		//	//fmt.Printf("%x\n", recvBuf[21:])
+		//}
+	}
+
+	//syscall.Close(sendfd)
 }
