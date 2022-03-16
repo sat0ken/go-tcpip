@@ -38,9 +38,10 @@ func (*TCPHeader) CreateSyn(sourceport, destport []byte) TCPHeader {
 		AcknowlegeNumber: []byte{0x00, 0x00, 0x00, 0x00},
 		HeaderLength:     []byte{0x00},
 		ControlFlags:     []byte{0x02},
-		WindowSize:       []byte{0xff, 0xd7},
-		Checksum:         []byte{0x00, 0x00},
-		UrgentPointer:    []byte{0x00, 0x00},
+		//WindowSize:       []byte{0xff, 0xd7},
+		WindowSize:    []byte{0x16, 0xd0},
+		Checksum:      []byte{0x00, 0x00},
+		UrgentPointer: []byte{0x00, 0x00},
 	}
 }
 
@@ -58,22 +59,23 @@ func createTCPTimestamp() []byte {
 func (*TCPOpstions) Create() TCPOpstions {
 	tcpoption := TCPOpstions{
 		// オプション番号2, Length, 値(2byte)
-		MaxsSegmentSize: []byte{0x02, 0x04, 0xff, 0xd7},
-		// オプション番号4, Length
-		SackPermitted: []byte{0x04, 0x02},
+		//MaxsSegmentSize: []byte{0x02, 0x04, 0xff, 0xd7},
+		MaxsSegmentSize: []byte{0x02, 0x04, 0x00, 0x30},
+		// オプション番号4, Length + EndOfList
+		SackPermitted: []byte{0x04, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		// オプション番号1
-		NoOperation: []byte{0x01},
+		//NoOperation: []byte{0x01},
 		// オプション番号3, Length, 値(1byte)
-		WindowScale: []byte{0x03, 0x03, 0x07},
+		//WindowScale: []byte{0x03, 0x03, 0x07},
 		// オプション番号8, Length, Timestamp value(4byte), echo reply(4byte)
-		Timestamps: []byte{0x08, 0x0a},
+		//Timestamps: []byte{0x08, 0x0a},
 	}
 
 	// Timestamp value(4byte)を追加
 	//tcpoption.Timestamps = append(tcpoption.Timestamps, createTCPTimestamp()...)
-	tcpoption.Timestamps = append(tcpoption.Timestamps, []byte{0x80, 0x6a, 0x9b, 0xca}...)
+	//tcpoption.Timestamps = append(tcpoption.Timestamps, []byte{0x80, 0x6a, 0x9b, 0xca}...)
 	// echo reply(4byte)を追加
-	tcpoption.Timestamps = append(tcpoption.Timestamps, []byte{0x00, 0x00, 0x00, 0x00}...)
+	//tcpoption.Timestamps = append(tcpoption.Timestamps, []byte{0x00, 0x00, 0x00, 0x00}...)
 
 	return tcpoption
 }

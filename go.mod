@@ -1,3 +1,3 @@
-module network
+module tcpip
 
 go 1.17
