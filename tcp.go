@@ -2,9 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
-	"log"
-	"syscall"
 	"time"
 )
 
@@ -30,18 +27,46 @@ type TCPOpstions struct {
 	WindowScale     []byte
 }
 
-func (*TCPHeader) CreateSyn(sourceport, destport []byte) TCPHeader {
+type TCPDummyHeader struct {
+	SourceIPAddr []byte
+	DstIPAddr    []byte
+	Protocol     []byte
+	Length       []byte
+}
+
+func (*TCPHeader) Create(sourceport, destport []byte, tcpflag string) TCPHeader {
+	var tcpflagByte byte
+
+	switch tcpflag {
+	case "SYN":
+		tcpflagByte = 0x02
+	case "ACK":
+		tcpflagByte = 0x10
+	case "PSHACK":
+		tcpflagByte = 0x18
+	case "FINACK":
+		tcpflagByte = 0x11
+	}
+
 	return TCPHeader{
 		SourcePort:       sourceport,
 		DestPort:         destport,
-		SequenceNumber:   []byte{0x2b, 0xed, 0x50, 0x49},
+		SequenceNumber:   []byte{0x00, 0x00, 0x00, 0x00},
 		AcknowlegeNumber: []byte{0x00, 0x00, 0x00, 0x00},
 		HeaderLength:     []byte{0x00},
-		ControlFlags:     []byte{0x02},
+		ControlFlags:     []byte{tcpflagByte},
 		//WindowSize:       []byte{0xff, 0xd7},
 		WindowSize:    []byte{0x16, 0xd0},
 		Checksum:      []byte{0x00, 0x00},
 		UrgentPointer: []byte{0x00, 0x00},
+	}
+}
+func (*TCPDummyHeader) Create(header IPHeader, length uint16) TCPDummyHeader {
+	return TCPDummyHeader{
+		SourceIPAddr: header.SourceIPAddr,
+		DstIPAddr:    header.DstIPAddr,
+		Protocol:     []byte{0x00, 0x06},
+		Length:       []byte{0x00, byte(length)},
 	}
 }
 
@@ -80,105 +105,15 @@ func (*TCPOpstions) Create() TCPOpstions {
 	return tcpoption
 }
 
-func parseTCP(packet []byte) {
-	if packet[0] == 0x1f && packet[1] == 0x90 {
-		switch packet[13] {
-		case 0x12:
-			fmt.Printf("SYN ACK from %x\n", packet[0:1])
-		case 0x10:
-			fmt.Printf("ACK from %x\n", packet[0:1])
-		case 0x18:
-			fmt.Printf("PSH, ACK from %x\n", packet[0:1])
-		case 0x11:
-			fmt.Printf("FIN, ACK from %x\n", packet[0:1])
-		}
+func parseTCP(packet []byte) TCPHeader {
+	return TCPHeader{
+		SourcePort:       packet[0:2],
+		DestPort:         packet[2:4],
+		SequenceNumber:   packet[4:8],
+		AcknowlegeNumber: packet[8:12],
+		HeaderLength:     []byte{packet[12]},
+		ControlFlags:     []byte{packet[13]},
+		WindowSize:       packet[14:16],
+		Checksum:         packet[16:18],
 	}
-}
-
-func connect() {
-	localmac := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	localif, err := getLocalIpAddr("lo")
-	if err != nil {
-		log.Fatalf("getLocalIpAddr err : %v", err)
-	}
-
-	var ethernet EthernetFrame
-	ethernet = ethernet.Create(localmac, localmac, "IPv4")
-
-	var ipheader IPHeader
-	ipheader = ipheader.Create(localif.LocalIpAddr, localif.LocalIpAddr, "TCP")
-
-	var tcpheader TCPHeader
-	tcpheader = tcpheader.CreateSyn([]byte{0xa6, 0xe9}, []byte{0x1f, 0x90})
-
-	var tcpOption TCPOpstions
-	tcpOption = tcpOption.Create()
-
-	// IP=20byte + tcpヘッダの長さ + tcpオプションの長さ
-	ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader) + toByteLen(tcpOption))
-
-	num := toByteLen(tcpheader) + toByteLen(tcpOption)
-	tcpheader.HeaderLength = []byte{byte(num << 2)}
-
-	var dummy DummyHeader
-	dummyHeader := dummy.Create(ipheader)
-	dummyHeader.PacketLenth = tcpheader.HeaderLength
-
-	sum := sumByteArr(toByteArr(dummy))
-	sum += sumByteArr(toByteArr(tcpheader))
-	sum += sumByteArr(toByteArr(tcpOption))
-
-	tcpheader.Checksum = calcChecksum(sum)
-
-	var sendTcpSyn []byte
-	//sendTcpSyn = append(sendTcpSyn, toByteArr(ethernet)...)
-	sendTcpSyn = append(sendTcpSyn, toByteArr(ipheader)...)
-	sendTcpSyn = append(sendTcpSyn, toByteArr(tcpheader)...)
-	sendTcpSyn = append(sendTcpSyn, toByteArr(tcpOption)...)
-
-	addr := syscall.SockaddrInet4{
-		Addr: [4]byte{0x7f, 0x00, 0x00, 0x01},
-		Port: 8080,
-	}
-	//addr := syscall.SockaddrLinklayer{
-	//	Protocol: syscall.ETH_P_IP,
-	//	Ifindex:  1,
-	//}
-
-	//sendfd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(htons(syscall.ETH_P_ALL)))
-	sendfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
-	if err != nil {
-		log.Fatalf("create tcp sendfd err : %v\n", err)
-	}
-	syscall.SetsockoptInt(sendfd, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1)
-	syscall.SetsockoptInt(sendfd, syscall.SOL_SOCKET, syscall.TCP_NODELAY, 1)
-	syscall.SetsockoptInt(sendfd, syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
-
-	err = syscall.Connect(sendfd, &addr)
-	if err != nil {
-		log.Fatalf("Connect err : %v\n", err)
-	}
-
-	err = syscall.Sendto(sendfd, sendTcpSyn, 0, &addr)
-	if err != nil {
-		log.Fatalf("Send to err : %v\n", err)
-	}
-
-	for {
-		recvBuf := make([]byte, 128)
-		read, sockaddr, err := syscall.Recvfrom(sendfd, recvBuf, 0)
-		_ = read
-		_ = sockaddr
-		if err != nil {
-			log.Fatalf("read err : %v", err)
-		}
-		// IPヘッダのProtocolがICMPであることをチェック
-		if recvBuf[9] == 0x06 {
-			// IPヘッダが20byteなので21byte目からがICMPパケット
-			parseTCP(recvBuf[20:])
-			//fmt.Printf("%x\n", recvBuf[21:])
-		}
-	}
-
-	//syscall.Close(sendfd)
 }

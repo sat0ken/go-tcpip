@@ -101,3 +101,10 @@ func calcChecksum(sum uint) []byte {
 
 	return uintTo2byte(^j)
 }
+
+func checksum(sum uint) []byte {
+	// https://el.jibun.atmarkit.co.jp/hiro/2013/07/tcp-f933.html
+	// 22DA6 - 20000 + 2 = 2DA8となり、2DA8をビット反転
+	val := sum - (sum>>16)<<16 + (sum >> 16) ^ 0xffff
+	return uintTo2byte(uint16(val))
+}

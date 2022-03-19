@@ -6,7 +6,7 @@ type EthernetFrame struct {
 	Type          []byte
 }
 
-func (EthernetFrame) Create(dstMacAddr, sourceMacAddr []byte, ethType string) EthernetFrame {
+func (*EthernetFrame) Create(dstMacAddr, sourceMacAddr []byte, ethType string) EthernetFrame {
 	ethernet := EthernetFrame{
 		//ルータのMac Addressをセット
 		DstMacAddr: dstMacAddr,
