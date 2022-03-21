@@ -1,14 +1,17 @@
 package main
 
+var IPv4 = []byte{0x08, 0x00}
+var ARP = []byte{0x08, 0x06}
+
 type EthernetFrame struct {
 	DstMacAddr    []byte
 	SourceMacAddr []byte
 	Type          []byte
 }
 
-func (*EthernetFrame) Create(dstMacAddr, sourceMacAddr []byte, ethType string) EthernetFrame {
+func NewEthernet(dstMacAddr, sourceMacAddr []byte, ethType string) EthernetFrame {
 	ethernet := EthernetFrame{
-		//ルータのMac Addressをセット
+		//宛先のMac Addressをセット
 		DstMacAddr: dstMacAddr,
 		//PCのMac Addressをセット
 		SourceMacAddr: sourceMacAddr,
@@ -17,10 +20,10 @@ func (*EthernetFrame) Create(dstMacAddr, sourceMacAddr []byte, ethType string) E
 	switch ethType {
 	case "IPv4":
 		// 0800 = IPv4
-		ethernet.Type = []byte{0x08, 0x00}
+		ethernet.Type = IPv4
 	case "ARP":
 		// 0806 = ARP
-		ethernet.Type = []byte{0x08, 0x06}
+		ethernet.Type = ARP
 	}
 	return ethernet
 }

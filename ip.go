@@ -14,22 +14,18 @@ type IPHeader struct {
 	DstIPAddr              []byte
 }
 
-func (*IPHeader) Create(sourceIp, dstIp []byte, protocol string) IPHeader {
+func NewIPHeader(sourceIp, dstIp []byte, protocol string) IPHeader {
 
 	ip := IPHeader{
 		VersionAndHeaderLenght: []byte{0x45},
 		ServiceType:            []byte{0x00},
-		//TotalPacketLength:      []byte{0x00, 0x54},
-		TotalPacketLength: []byte{0x00, 0x00},
-		//PacketIdentification: []byte{0x33, 0xa2},
-		PacketIdentification: []byte{0x00, 0x00},
-		Flags:                []byte{0x40, 0x00},
-		TTL:                  []byte{0x40},
-		HeaderCheckSum:       []byte{0x00, 0x00},
-		SourceIPAddr:         sourceIp,
-		//SourceIPAddr:           []byte{0xc0, 0xa8, 0x00, 0x06},
-		//DstIPAddr:              []byte{0xc0, 0xa8, 0x00, 0x0f},
-		DstIPAddr: dstIp,
+		TotalPacketLength:      []byte{0x00, 0x00},
+		PacketIdentification:   []byte{0x00, 0x00},
+		Flags:                  []byte{0x40, 0x00},
+		TTL:                    []byte{0x40},
+		HeaderCheckSum:         []byte{0x00, 0x00},
+		SourceIPAddr:           sourceIp,
+		DstIPAddr:              dstIp,
 	}
 
 	switch protocol {
@@ -40,10 +36,6 @@ func (*IPHeader) Create(sourceIp, dstIp []byte, protocol string) IPHeader {
 	case "TCP":
 		ip.Protocol = []byte{0x06}
 	}
-
-	//checksumを計算するために合計する
-	sum := sumByteArr(toByteArr(ip))
-	//合計値からchecksumを計算してHeaderにセットしてreturnする
-	ip.HeaderCheckSum = checksum(sum)
+	
 	return ip
 }

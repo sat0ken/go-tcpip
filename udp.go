@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"syscall"
 )
@@ -13,15 +14,14 @@ type UDPHeader struct {
 	Checksum    []byte
 }
 
-type DummyHeader struct {
+type UDPDummyHeader struct {
 	SourceIPAddr []byte
 	DstIPAddr    []byte
-	Data         []byte
 	Protocol     []byte
-	PacketLenth  []byte
+	Length       []byte
 }
 
-func (*UDPHeader) Create(sourceport, destport []byte) UDPHeader {
+func NewUDPHeader(sourceport, destport []byte) UDPHeader {
 	return UDPHeader{
 		SourcePort:  sourceport,
 		DestPort:    destport,
@@ -30,13 +30,12 @@ func (*UDPHeader) Create(sourceport, destport []byte) UDPHeader {
 	}
 }
 
-func (*DummyHeader) Create(header IPHeader) DummyHeader {
-	return DummyHeader{
+func NewUDPDummyHeader(header IPHeader) UDPDummyHeader {
+	return UDPDummyHeader{
 		SourceIPAddr: header.SourceIPAddr,
 		DstIPAddr:    header.DstIPAddr,
-		Data:         []byte{0x00},
-		Protocol:     header.Protocol,
-		PacketLenth:  []byte{0x00, 0x00},
+		Protocol:     []byte{0x00, 0x11},
+		Length:       []byte{0x00, 0x00},
 	}
 }
 
@@ -51,28 +50,11 @@ func (*UDPHeader) Send(packet []byte) {
 		log.Fatalf("create udp sendfd err : %v\n", err)
 	}
 
-	// http://www.furuta.com/yasunori/linux/raw_socket.html
-	//err = syscall.SetsockoptInt(sendfd, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1)
-	//if err != nil {
-	//	log.Fatalf("set socket option err : %v\n", err)
-	//}
-	//err = syscall.SetsockoptString(sendfd, syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, "lo")
-	//if err != nil {
-	//	log.Fatalf("set socket option string err : %v\n", err)
-	//}
-
-	//err = syscall.Bind(sendfd, &syscall.SockaddrInet4{
-	//	Addr: [4]byte{0x00, 0x00, 0x00, 0x00},
-	//	Port: 42279,
-	//})
-	//if err != nil {
-	//	log.Fatalf("sendfd bind err : %v\n", err)
-	//}
-
 	err = syscall.Sendto(sendfd, packet, 0, &addr)
 	if err != nil {
 		log.Fatalf("Send to err : %v\n", err)
 	}
+	fmt.Println("UDP packet send")
 	syscall.Close(sendfd)
 }
 
@@ -83,33 +65,35 @@ func udpSend() {
 	if err != nil {
 		log.Fatalf("getLocalIpAddr err : %v", err)
 	}
-	//fmt.Printf("%+v\n", localif)
-	var ip IPHeader
-	ipheader := ip.Create(localif.LocalIpAddr, localif.LocalIpAddr, "UDP")
 
-	var udp UDPHeader
-	udppacket := udp.Create([]byte{0xa6, 0xe9}, []byte{0x30, 0x39})
+	ipheader := NewIPHeader(localif.LocalIpAddr, localif.LocalIpAddr, "UDP")
+
+	//var udp UDPHeader
+	udpheader := NewUDPHeader(uintTo2byte(42279), uintTo2byte(12345))
 	udpdata := []byte(`hogehoge`)
 
-	ipheader.TotalPacketLength = uintTo2byte(uint16(20) + toByteLen(udppacket) + uint16(len(udpdata)))
-	udppacket.PacketLenth = uintTo2byte(toByteLen(udppacket) + uint16(len(udpdata)))
+	ipheader.TotalPacketLength = uintTo2byte(uint16(20) + toByteLen(udpheader) + uint16(len(udpdata)))
+	udpheader.PacketLenth = uintTo2byte(toByteLen(udpheader) + uint16(len(udpdata)))
 
-	var dummy DummyHeader
-	dummyHeader := dummy.Create(ipheader)
-	dummyHeader.PacketLenth = udp.PacketLenth
+	// IPヘッダのチェックサムを計算する
+	ipsum := sumByteArr(toByteArr(ipheader))
+	ipheader.HeaderCheckSum = checksum(ipsum)
 
-	sum := sumByteArr(toByteArr(dummy))
-	sum += sumByteArr(toByteArr(udppacket))
+	dummyHeader := NewUDPDummyHeader(ipheader)
+	dummyHeader.Length = udpheader.PacketLenth
+
+	sum := sumByteArr(toByteArr(dummyHeader))
+	sum += sumByteArr(toByteArr(udpheader))
 	sum += sumByteArr(udpdata)
 
-	udppacket.Checksum = calcChecksum(sum)
+	// UDPヘッダ+データのチェックサムを計算する
+	udpheader.Checksum = checksum(sum)
 
-	var eth EthernetFrame
 	var packet []byte
-	packet = append(packet, toByteArr(eth.Create(localmac, localmac, "IPv4"))...)
+	packet = append(packet, toByteArr(NewEthernet(localmac, localmac, "IPv4"))...)
 	packet = append(packet, toByteArr(ipheader)...)
-	packet = append(packet, toByteArr(udppacket)...)
+	packet = append(packet, toByteArr(udpheader)...)
 	packet = append(packet, udpdata...)
 
-	udp.Send(packet)
+	udpheader.Send(packet)
 }

@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+const (
+	SYN    = 0x02
+	ACK    = 0x10
+	SYNACK = 0x12
+	PSHACK = 0x18
+	FINACK = 0x11
+)
+
 // https://www.infraexpert.com/study/tcpip8.html
 type TCPHeader struct {
 	SourcePort       []byte
@@ -20,7 +28,7 @@ type TCPHeader struct {
 	TCPData          []byte
 }
 
-type TCPOpstions struct {
+type TCPOptions struct {
 	MaxsSegmentSize []byte
 	SackPermitted   []byte
 	Timestamps      []byte
@@ -35,18 +43,18 @@ type TCPDummyHeader struct {
 	Length       []byte
 }
 
-func (*TCPHeader) Create(sourceport, destport []byte, tcpflag string) TCPHeader {
+func NewTCPHeader(sourceport, destport []byte, tcpflag string) TCPHeader {
 	var tcpflagByte byte
 
 	switch tcpflag {
 	case "SYN":
-		tcpflagByte = 0x02
+		tcpflagByte = SYN
 	case "ACK":
-		tcpflagByte = 0x10
+		tcpflagByte = ACK
 	case "PSHACK":
-		tcpflagByte = 0x18
+		tcpflagByte = PSHACK
 	case "FINACK":
-		tcpflagByte = 0x11
+		tcpflagByte = FINACK
 	}
 
 	return TCPHeader{
@@ -56,13 +64,14 @@ func (*TCPHeader) Create(sourceport, destport []byte, tcpflag string) TCPHeader 
 		AcknowlegeNumber: []byte{0x00, 0x00, 0x00, 0x00},
 		HeaderLength:     []byte{0x00},
 		ControlFlags:     []byte{tcpflagByte},
-		// WindowSize = とりま適当な値を入れてる,
+		// WindowSize = とりま適当な値を入れてる
 		WindowSize:    []byte{0x16, 0xd0},
 		Checksum:      []byte{0x00, 0x00},
 		UrgentPointer: []byte{0x00, 0x00},
 	}
 }
-func (*TCPDummyHeader) Create(header IPHeader, length uint16) TCPDummyHeader {
+
+func NewTCPDummyHeader(header IPHeader, length uint16) TCPDummyHeader {
 	return TCPDummyHeader{
 		SourceIPAddr: header.SourceIPAddr,
 		DstIPAddr:    header.DstIPAddr,
@@ -82,8 +91,8 @@ func createTCPTimestamp() []byte {
 }
 
 // https://milestone-of-se.nesuke.com/nw-basic/tcp-udp/tcp-option/
-func (*TCPOpstions) Create() TCPOpstions {
-	tcpoption := TCPOpstions{
+func (*TCPOptions) Create() TCPOptions {
+	tcpoption := TCPOptions{
 		// オプション番号2, Length, 値(2byte)
 		//MaxsSegmentSize: []byte{0x02, 0x04, 0xff, 0xd7},
 		MaxsSegmentSize: []byte{0x02, 0x04, 0x00, 0x30},
@@ -104,23 +113,4 @@ func (*TCPOpstions) Create() TCPOpstions {
 	//tcpoption.Timestamps = append(tcpoption.Timestamps, []byte{0x00, 0x00, 0x00, 0x00}...)
 
 	return tcpoption
-}
-
-func parseTCP(packet []byte) TCPHeader {
-
-	tcp := TCPHeader{
-		SourcePort:       packet[0:2],
-		DestPort:         packet[2:4],
-		SequenceNumber:   packet[4:8],
-		AcknowlegeNumber: packet[8:12],
-		HeaderLength:     []byte{packet[12]},
-		ControlFlags:     []byte{packet[13]},
-		WindowSize:       packet[14:16],
-		Checksum:         packet[16:18],
-		UrgentPointer:    packet[18:20],
-	}
-	header_length := (packet[12] >> 4) * 4
-	tcp.TCPData = packet[header_length:]
-
-	return tcp
 }

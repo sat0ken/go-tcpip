@@ -5,41 +5,46 @@ import (
 	"log"
 )
 
-func ping() {
-	ipAddr, err := getLocalIpAddr("wlp4s0")
+func sendArpICMP(destip string) {
+
+	localif, err := getLocalIpAddr("wlp4s0")
 	if err != nil {
 		log.Fatalf("getLocalIpAddr err : %v", err)
 	}
 
-	//ICMPを作成
-	var icmp ICMP
-	icmpPacket := icmp.Create()
-	icmpsum := sumByteArr(toByteArr(icmpPacket))
-	icmpPacket.CheckSum = calcChecksum(icmpsum)
+	// ARPのパケットを作る
+	var arp Arp
+	arp = NewArpRequest(localif, destip)
 
-	// IPヘッダを作成
-	var ip IPHeader
-	header := ip.Create(ipAddr.LocalIpAddr, []byte{0xc0, 0xa8, 0x00, 0x0f}, "IP")
-	sum := sumByteArr(toByteArr(header))
-	header.HeaderCheckSum = calcChecksum(sum)
+	var sendArp []byte
+	// Ethernetのパケットを作る
+	sendArp = append(sendArp, toByteArr(NewEthernet([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, localif.LocalMacAddr, "ARP"))...)
+	sendArp = append(sendArp, toByteArr(arp)...)
 
-	// TotalLengthをセット
+	// ARPを送る
+	arpreply := arp.Send(localif.Index, sendArp)
+	fmt.Printf("ARP Reply : %s\n", printByteArr(arpreply.SenderMacAddr))
+
+	var sendIcmp []byte
+	// ICMPパケットを作る
+	icmpPacket := NewICMP()
+	// IPヘッダを作る
+	header := NewIPHeader(localif.LocalIpAddr, iptobyte(destip), "IP")
+	// IPヘッダの長さとICMPパケットの長さの合計をIPヘッダのLengthにセットする
 	header.TotalPacketLength = uintTo2byte(toByteLen(header) + toByteLen(icmpPacket))
 
-	//var ethernet EthernetFrame
-	var sendbyte []byte
-	//sendbyte = append(sendbyte, toByteArr(ethernet.Create(ipAddr.LocalMacAddr))...)
-	sendbyte = append(sendbyte, toByteArr(header)...)
-	sendbyte = append(sendbyte, toByteArr(icmpPacket)...)
+	// チェックサムを計算する
+	ipsum := sumByteArr(toByteArr(header))
+	header.HeaderCheckSum = checksum(ipsum)
 
-	fmt.Printf("TotalLEngth : %d\n", header.TotalPacketLength)
+	// Ethernet, IPヘッダ, ICMPパケットの順序でbyteデータにする
+	sendIcmp = append(sendIcmp, toByteArr(NewEthernet(arpreply.SenderMacAddr, localif.LocalMacAddr, "IPv4"))...)
+	sendIcmp = append(sendIcmp, toByteArr(header)...)
+	sendIcmp = append(sendIcmp, toByteArr(icmpPacket)...)
 
-	fmt.Println("---check ip header---")
-	checktoByteArr(header)
-	fmt.Println("---check icmp packet---")
-	checktoByteArr(icmpPacket)
-	for _, v := range sendbyte {
-		fmt.Printf("%x ", v)
+	// ICMPパケットを送る
+	icmpreply := icmpPacket.Send(localif.Index, sendIcmp)
+	if icmpreply.Type[0] == 0 {
+		fmt.Printf("ICMP Reply is %d, OK!\n", icmpreply.Type[0])
 	}
-	fmt.Println()
 }

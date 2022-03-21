@@ -39,12 +39,12 @@ func NewTCPIP(tcpip TCPIP) []byte {
 	localIP := iptobyte(tcpip.DestIP)
 
 	var ipheader IPHeader
-	ipheader = ipheader.Create(localIP, localIP, "TCP")
+	ipheader = NewIPHeader(localIP, localIP, "TCP")
 
 	var tcpheader TCPHeader
 	// 送信先ポート8080=1f90
 	// 自分のポートは42279でとりま固定
-	tcpheader = tcpheader.Create(uintTo2byte(42279), uintTo2byte(tcpip.DestPort), tcpip.TcpFlag)
+	tcpheader = NewTCPHeader(uintTo2byte(42279), uintTo2byte(tcpip.DestPort), tcpip.TcpFlag)
 
 	if tcpip.TcpFlag == "ACK" || tcpip.TcpFlag == "PSHACK" || tcpip.TcpFlag == "FINACK" {
 		tcpheader.SequenceNumber = tcpip.SeqNumber
@@ -59,15 +59,17 @@ func NewTCPIP(tcpip TCPIP) []byte {
 	} else {
 		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader)) // + toByteLen(tcpOption))
 	}
+	ipsum := sumByteArr(toByteArr(ipheader))
+	ipheader.HeaderCheckSum = checksum(ipsum)
 
 	num := toByteLen(tcpheader) //+ toByteLen(tcpOption)
 	tcpheader.HeaderLength = []byte{byte(num << 2)}
 
 	var dummy TCPDummyHeader
 	if tcpip.TcpFlag == "PSHACK" {
-		dummy = dummy.Create(ipheader, num+uint16(len(tcpip.Data)))
+		dummy = NewTCPDummyHeader(ipheader, num+uint16(len(tcpip.Data)))
 	} else {
-		dummy = dummy.Create(ipheader, num)
+		dummy = NewTCPDummyHeader(ipheader, num)
 	}
 
 	//ダミーヘッダとTCPヘッダとTCPデータのbyte値を合計してチェックサムを計算する

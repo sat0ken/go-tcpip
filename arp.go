@@ -23,7 +23,7 @@ type Arp struct {
 	TargetIpAddr  []byte
 }
 
-func (*Arp) Request(localif LocalIpMacAddr) Arp {
+func NewArpRequest(localif LocalIpMacAddr, targetip string) Arp {
 	return Arp{
 		// イーサネットの場合、0x0001で固定
 		HardwareType: []byte{0x00, 0x01},
@@ -42,7 +42,7 @@ func (*Arp) Request(localif LocalIpMacAddr) Arp {
 		// ターゲットMACアドレス broadcastなのでAll zero
 		TargetMacAddr: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		// ターゲットIPアドレス
-		TargetIpAddr: []byte{0xc0, 0xa8, 0x00, 0x0f},
+		TargetIpAddr: iptobyte(targetip),
 	}
 }
 
@@ -56,12 +56,7 @@ func (*Arp) Send(ifindex int, packet []byte) Arp {
 	if err != nil {
 		log.Fatalf("create sendfd err : %v\n", err)
 	}
-	recvfd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(htons(syscall.ETH_P_ALL)))
-	if err != nil {
-		log.Fatalf("create recvfd err : %v\n", err)
-	}
 	defer syscall.Close(sendfd)
-	defer syscall.Close(recvfd)
 
 	err = syscall.Sendto(sendfd, packet, 0, &addr)
 	if err != nil {
@@ -70,9 +65,7 @@ func (*Arp) Send(ifindex int, packet []byte) Arp {
 
 	for {
 		recvBuf := make([]byte, 80)
-		read, sockaddr, err := syscall.Recvfrom(recvfd, recvBuf, 0)
-		_ = read
-		_ = sockaddr
+		_, _, err := syscall.Recvfrom(sendfd, recvBuf, 0)
 		if err != nil {
 			log.Fatalf("read err : %v", err)
 		}

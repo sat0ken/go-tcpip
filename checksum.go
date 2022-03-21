@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"reflect"
-	"strconv"
 )
 
 func printByteArr(arr []byte) string {
@@ -41,6 +40,7 @@ func checktoByteArr(value interface{}) {
 	}
 }
 
+// 各構造体のフィールドが持つbyteをflatな配列にする
 func toByteArr(value interface{}) []byte {
 	rv := reflect.ValueOf(value)
 	//rt := rv.Type()
@@ -48,16 +48,7 @@ func toByteArr(value interface{}) []byte {
 
 	for i := 0; i < rv.NumField(); i++ {
 		//field := rt.Field(i)
-		//switch rv.Field(i).Interface().(type) {
-		//case []uint8:
-		//	fmt.Printf("%s\n", field.Name)
-		//	b := rv.Field(i).Interface().([]uint8)
-		//	fmt.Printf("%s 0x%x : %b\n", field.Name, b, b)
-		//case [2]uint8:
-		//	fmt.Printf("%s\n", field.Name)
-		//	b := rv.Field(i).Interface().([2]uint8)
-		//	fmt.Printf("%s 0x%x : %b\n", field.Name, b, b)
-		//}
+		// fmt.Printf("%s\n", field.Name)
 		b := rv.Field(i).Interface().([]byte)
 		arr = append(arr, b...)
 	}
@@ -81,27 +72,6 @@ func uintTo2byte(data uint16) []byte {
 	b := make([]byte, 2)
 	binary.BigEndian.PutUint16(b, data)
 	return b
-}
-
-func calcChecksum(sum uint) []byte {
-
-	dataByteSum := fmt.Sprintf("%b", sum)
-
-	overFlowBitLength := len(dataByteSum) - 16
-
-	overflow := dataByteSum[0:overFlowBitLength]
-	bitData := dataByteSum[overFlowBitLength:]
-
-	uintOverflow, _ := strconv.ParseUint(overflow, 2, overFlowBitLength)
-	uintData, _ := strconv.ParseUint(bitData, 2, 16)
-
-	//fmt.Printf("%b\n", uintOverflow)
-	//fmt.Printf("%b\n", uintData)
-	//fmt.Printf("%b\n", uintData+uintOverflow)
-
-	var j = uint16(uintData + uintOverflow)
-
-	return uintTo2byte(^j)
 }
 
 func checksum(sum uint) []byte {
