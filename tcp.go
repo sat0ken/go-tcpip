@@ -17,6 +17,7 @@ type TCPHeader struct {
 	Checksum         []byte
 	UrgentPointer    []byte
 	TCPOptionByte    []byte
+	TCPData          []byte
 }
 
 type TCPOpstions struct {
@@ -55,7 +56,7 @@ func (*TCPHeader) Create(sourceport, destport []byte, tcpflag string) TCPHeader 
 		AcknowlegeNumber: []byte{0x00, 0x00, 0x00, 0x00},
 		HeaderLength:     []byte{0x00},
 		ControlFlags:     []byte{tcpflagByte},
-		//WindowSize:       []byte{0xff, 0xd7},
+		// WindowSize = とりま適当な値を入れてる,
 		WindowSize:    []byte{0x16, 0xd0},
 		Checksum:      []byte{0x00, 0x00},
 		UrgentPointer: []byte{0x00, 0x00},
@@ -106,7 +107,8 @@ func (*TCPOpstions) Create() TCPOpstions {
 }
 
 func parseTCP(packet []byte) TCPHeader {
-	return TCPHeader{
+
+	tcp := TCPHeader{
 		SourcePort:       packet[0:2],
 		DestPort:         packet[2:4],
 		SequenceNumber:   packet[4:8],
@@ -115,5 +117,10 @@ func parseTCP(packet []byte) TCPHeader {
 		ControlFlags:     []byte{packet[13]},
 		WindowSize:       packet[14:16],
 		Checksum:         packet[16:18],
+		UrgentPointer:    packet[18:20],
 	}
+	header_length := (packet[12] >> 4) * 4
+	tcp.TCPData = packet[header_length:]
+
+	return tcp
 }

@@ -7,11 +7,13 @@ import (
 	"strconv"
 )
 
-func printByteArr(arr []byte) {
+func printByteArr(arr []byte) string {
+	var str string
 	for _, v := range arr {
-		fmt.Printf("%x ", v)
+		//fmt.Printf("%#x ", v)
+		str += fmt.Sprintf("%x ", v)
 	}
-	fmt.Println()
+	return str
 }
 
 func sumByteArr(arr []byte) uint {
