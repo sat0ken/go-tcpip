@@ -50,23 +50,31 @@ func NewTCPIP(tcpip TCPIP) []byte {
 		tcpheader.SequenceNumber = tcpip.SeqNumber
 		tcpheader.AcknowlegeNumber = tcpip.AckNumber
 	} else if tcpip.TcpFlag == "SYN" {
+		// SYNのときは乱数をセット
 		tcpheader.SequenceNumber = createSequenceNumber()
 	}
 
-	// IP=20byte + tcpヘッダの長さ + tcpオプションの長さ + dataの長さ
+	// IPヘッダにLengthをセットする
+	// IP=20byte + tcpヘッダの長さ + (tcpオプションの長さ) + dataの長さ
 	if tcpip.TcpFlag == "PSHACK" {
 		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader) + uint16(len(tcpip.Data)))
 	} else {
+		// ACKのときはTCPヘッダまで
 		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader)) // + toByteLen(tcpOption))
 	}
+
+	// Lengthをセットしたらチェックサムを計算する
 	ipsum := sumByteArr(toByteArr(ipheader))
 	ipheader.HeaderCheckSum = checksum(ipsum)
 
+	// TCPヘッダのLengthをセットする
 	num := toByteLen(tcpheader) //+ toByteLen(tcpOption)
 	tcpheader.HeaderLength = []byte{byte(num << 2)}
 
+	// TCPダミーヘッダを作成する
 	var dummy TCPDummyHeader
 	if tcpip.TcpFlag == "PSHACK" {
+		// PSHACKの時はTCPデータも全長に入れる
 		dummy = NewTCPDummyHeader(ipheader, num+uint16(len(tcpip.Data)))
 	} else {
 		dummy = NewTCPDummyHeader(ipheader, num)
@@ -88,6 +96,7 @@ func NewTCPIP(tcpip TCPIP) []byte {
 	}
 	tcpheader.Checksum = checksum(sum)
 
+	// IPヘッダ、TCPヘッダを１つのbyteの配列にする
 	var tcpipPacket []byte
 	tcpipPacket = append(tcpipPacket, toByteArr(ipheader)...)
 	tcpipPacket = append(tcpipPacket, toByteArr(tcpheader)...)

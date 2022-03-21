@@ -18,7 +18,7 @@ type HttpHeader struct {
 	Connection []byte
 }
 
-func (*HttpRequest) NewGetRequest(url, host string) HttpRequest {
+func NewHttpGetRequest(url, host string) HttpRequest {
 	header := HttpHeader{
 		Host:       []byte(fmt.Sprintf("Host: %s", host)),
 		UserAgent:  []byte(`User-Agent: curl/7.68.0`),

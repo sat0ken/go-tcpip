@@ -19,6 +19,13 @@ func calcSequenceNumber(packet []byte, add uint32) []byte {
 	return b
 }
 
+func setSockAddrInet4(destIp []byte, destPort int) syscall.SockaddrInet4 {
+	return syscall.SockaddrInet4{
+		Addr: [4]byte{destIp[0], destIp[1], destIp[2], destIp[3]},
+		Port: destPort,
+	}
+}
+
 func startConnectionFromEth(sendfd int, tcpip TCPIP) (TCPIP, error) {
 	localif, _ := getLocalIpAddr("lo")
 
@@ -66,18 +73,16 @@ func startTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
 	destIp := iptobyte(tcpip.DestIP)
 	destPort := uintTo2byte(tcpip.DestPort)
 
-	addr := syscall.SockaddrInet4{
-		Addr: [4]byte{destIp[0], destIp[1], destIp[2], destIp[3]},
-		Port: int(tcpip.DestPort),
-	}
+	addr := setSockAddrInet4(destIp, int(tcpip.DestPort))
 
+	// SYNを送る
 	err := SendIPv4Socket(sendfd, synPacket, addr)
 	if err != nil {
 		return TCPIP{}, fmt.Errorf("Send SYN packet err : %v\n", err)
 	}
 	fmt.Println("Send SYN packet")
 
-	//chanpacket := make(chan TCPHeader)
+	// SYNACKを受け取る
 	synack := RecvIPSocket(sendfd, destIp, destPort)
 
 	var ack TCPIP
@@ -106,18 +111,9 @@ func sendNginx(sendfd int, tcpip TCPIP) {
 	destIp := iptobyte(tcpip.DestIP)
 	destPort := uintTo2byte(tcpip.DestPort)
 
-	addr := syscall.SockaddrInet4{
-		Addr: [4]byte{destIp[0], destIp[1], destIp[2], destIp[3]},
-		Port: int(tcpip.DestPort),
-	}
+	addr := setSockAddrInet4(destIp, int(tcpip.DestPort))
 
-	recv := NewTCPSocket()
-	syscall.Bind(recv, &syscall.SockaddrInet4{
-		Addr: [4]byte{127, 0, 0, 1},
-		Port: 42279,
-	})
-
-	// httpをおくる
+	// httpリクエストを送る
 	err := SendIPv4Socket(sendfd, pshPacket, addr)
 	if err != nil {
 		log.Fatalf("Send PSH packet err : %v\n", err)
@@ -126,7 +122,7 @@ func sendNginx(sendfd int, tcpip TCPIP) {
 	var tolalLength uint32
 	for {
 		recvBuf := make([]byte, 1500)
-		_, _, err := syscall.Recvfrom(recv, recvBuf, 0)
+		_, _, err := syscall.Recvfrom(sendfd, recvBuf, 0)
 		if err != nil {
 			log.Fatalf("read err : %v", err)
 		}
@@ -175,8 +171,5 @@ func sendNginx(sendfd int, tcpip TCPIP) {
 			}
 		}
 	}
-
 	syscall.Close(sendfd)
-	syscall.Close(recv)
-
 }

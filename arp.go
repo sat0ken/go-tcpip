@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"syscall"
 )
@@ -91,4 +92,22 @@ func parseArpPacket(packet []byte) Arp {
 		TargetMacAddr: []byte{packet[18], packet[19], packet[20], packet[21], packet[22], packet[23]},
 		TargetIpAddr:  []byte{packet[24], packet[25], packet[26], packet[27]},
 	}
+}
+
+func arp() {
+	localif, err := getLocalIpAddr("wlp4s0")
+	if err != nil {
+		log.Fatalf("getLocalIpAddr err : %v", err)
+	}
+
+	ethernet := NewEthernet([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, localif.LocalMacAddr, "ARP")
+	//ethernet := NewEthernet([]byte{0x1c, 0x3b, 0xf3, 0x95, 0x6a, 0x2c}, localif.LocalMacAddr, "ARP")
+	arpReq := NewArpRequest(localif, "192.168.0.17")
+
+	var sendArp []byte
+	sendArp = append(sendArp, toByteArr(ethernet)...)
+	sendArp = append(sendArp, toByteArr(arpReq)...)
+
+	arpreply := arpReq.Send(localif.Index, sendArp)
+	fmt.Printf("ARP Reply : %s\n", printByteArr(arpreply.SenderMacAddr))
 }

@@ -91,7 +91,7 @@ func createTCPTimestamp() []byte {
 }
 
 // https://milestone-of-se.nesuke.com/nw-basic/tcp-udp/tcp-option/
-func (*TCPOptions) Create() TCPOptions {
+func NewTCPOptions() TCPOptions {
 	tcpoption := TCPOptions{
 		// オプション番号2, Length, 値(2byte)
 		//MaxsSegmentSize: []byte{0x02, 0x04, 0xff, 0xd7},
