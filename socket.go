@@ -46,9 +46,12 @@ func RecvIPSocket(fd int, destIp, destPort []byte) TCPHeader {
 		if err != nil {
 			log.Fatalf("read err : %v", err)
 		}
+		ip := parseIP(recvBuf[0:20])
+		fmt.Printf("ip header : %+v\n", ip)
 		// IPヘッダのProtocolがTCPであるか、 IPヘッダのDestinationのIPが同じであるか、TCPヘッダのSourceポートが送信先ポートと同じであるか
 		if recvBuf[9] == 0x06 && bytes.Equal(recvBuf[16:20], destIp) && bytes.Equal(recvBuf[20:22], destPort) {
 			// IPヘッダを省いて20byte目からのTCPパケットをパースする
+			fmt.Println("recv SYN,ACK")
 			synack = parseTCP(recvBuf[20:])
 			break
 		}

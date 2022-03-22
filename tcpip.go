@@ -36,13 +36,13 @@ func createSequenceNumber() []byte {
 }
 
 func NewTCPIP(tcpip TCPIP) []byte {
-	localIP := iptobyte(tcpip.DestIP)
+	destIP := iptobyte(tcpip.DestIP)
+	localif, _ := getLocalIpAddr("wlp4s0")
 
 	var ipheader IPHeader
-	ipheader = NewIPHeader(localIP, localIP, "TCP")
+	ipheader = NewIPHeader(localif.LocalIpAddr, destIP, "TCP")
 
 	var tcpheader TCPHeader
-	// 送信先ポート8080=1f90
 	// 自分のポートは42279でとりま固定
 	tcpheader = NewTCPHeader(uintTo2byte(42279), uintTo2byte(tcpip.DestPort), tcpip.TcpFlag)
 

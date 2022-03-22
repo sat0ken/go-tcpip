@@ -87,7 +87,7 @@ func startTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
 
 	var ack TCPIP
 	// 0x12 = SYNACK, 0x11 = FINACK, 0x10 = ACK
-	if synack.ControlFlags[0] == SYNACK || synack.ControlFlags[0] == FINACK || synack.ControlFlags[0] == ACK {
+	if synack.ControlFlags[0] == SYNACK || synack.ControlFlags[0] == FINACK { //|| synack.ControlFlags[0] == ACK {
 		// SYNACKに対してACKを送り返す
 		ack = TCPIP{
 			DestIP:    tcpip.DestIP,

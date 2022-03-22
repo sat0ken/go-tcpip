@@ -20,10 +20,10 @@ type HttpHeader struct {
 
 func NewHttpGetRequest(url, host string) HttpRequest {
 	header := HttpHeader{
-		Host:       []byte(fmt.Sprintf("Host: %s", host)),
-		UserAgent:  []byte(`User-Agent: curl/7.68.0`),
-		Accept:     []byte(`Accept: */*`),
-		Connection: []byte(`Connection: close`),
+		Host:      []byte(fmt.Sprintf("Host: %s", host)),
+		UserAgent: []byte(`User-Agent: curl/7.68.0`),
+		Accept:    []byte(`Accept: */*`),
+		//Connection: []byte(`Connection: close`),
 	}
 	return HttpRequest{
 		Request: []byte(fmt.Sprintf("GET %s HTTP/1.1", url)),
