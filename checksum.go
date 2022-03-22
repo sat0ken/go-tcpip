@@ -74,6 +74,12 @@ func uintTo2byte(data uint16) []byte {
 	return b
 }
 
+func uintTo3byte(data uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, data)
+	return b[1:]
+}
+
 func checksum(sum uint) []byte {
 	// https://el.jibun.atmarkit.co.jp/hiro/2013/07/tcp-f933.html
 	// 22DA6 - 20000 + 2 = 2DA8となり、2DA8をビット反転

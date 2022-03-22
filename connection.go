@@ -80,7 +80,6 @@ func startTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
 	if err != nil {
 		return TCPIP{}, fmt.Errorf("Send SYN packet err : %v\n", err)
 	}
-	fmt.Println("Send SYN packet")
 
 	// SYNACKを受け取る
 	synack := RecvIPSocket(sendfd, destIp, destPort)
@@ -88,6 +87,7 @@ func startTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
 	var ack TCPIP
 	// 0x12 = SYNACK, 0x11 = FINACK, 0x10 = ACK
 	if synack.ControlFlags[0] == SYNACK || synack.ControlFlags[0] == FINACK { //|| synack.ControlFlags[0] == ACK {
+		fmt.Printf("Recv SYNACK|FINACK %x from : %s\n", synack.ControlFlags, tcpip.DestIP)
 		// SYNACKに対してACKを送り返す
 		ack = TCPIP{
 			DestIP:    tcpip.DestIP,
@@ -98,6 +98,7 @@ func startTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
 		}
 		ackPacket := NewTCPIP(ack)
 		err = SendIPv4Socket(sendfd, ackPacket, addr)
+		fmt.Printf("Send ACK to : %s\n", tcpip.DestIP)
 		if err != nil {
 			return TCPIP{}, fmt.Errorf("Send ACK packet err : %v\n", err)
 		}

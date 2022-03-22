@@ -14,7 +14,7 @@ func NewTCPSocket() int {
 	}
 	// IPヘッダは自分で作るのでIP_HDRINCLオプションをセットする
 	syscall.SetsockoptInt(sendfd, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1)
-	syscall.SetsockoptInt(sendfd, syscall.IPPROTO_TCP, syscall.SO_SNDTIMEO, 1)
+	//syscall.SetsockoptInt(sendfd, syscall.IPPROTO_TCP, syscall.SO_SNDTIMEO, 1)
 
 	return sendfd
 }
@@ -39,6 +39,7 @@ func SendIPv4Socket(fd int, packet []byte, addr syscall.SockaddrInet4) error {
 
 func RecvIPSocket(fd int, destIp, destPort []byte) TCPHeader {
 	var synack TCPHeader
+	var ip IPHeader
 
 	for {
 		recvBuf := make([]byte, 128)
@@ -46,12 +47,11 @@ func RecvIPSocket(fd int, destIp, destPort []byte) TCPHeader {
 		if err != nil {
 			log.Fatalf("read err : %v", err)
 		}
-		ip := parseIP(recvBuf[0:20])
-		fmt.Printf("ip header : %+v\n", ip)
+		// IPヘッダをUnpackする
+		ip = parseIP(recvBuf[0:20])
 		// IPヘッダのProtocolがTCPであるか、 IPヘッダのDestinationのIPが同じであるか、TCPヘッダのSourceポートが送信先ポートと同じであるか
-		if recvBuf[9] == 0x06 && bytes.Equal(recvBuf[16:20], destIp) && bytes.Equal(recvBuf[20:22], destPort) {
+		if bytes.Equal(ip.Protocol, []byte{0x06}) && bytes.Equal(ip.SourceIPAddr, destIp) {
 			// IPヘッダを省いて20byte目からのTCPパケットをパースする
-			fmt.Println("recv SYN,ACK")
 			synack = parseTCP(recvBuf[20:])
 			break
 		}
