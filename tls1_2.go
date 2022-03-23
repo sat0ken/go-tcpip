@@ -10,8 +10,9 @@ import (
 
 const (
 	ClientHello       = 0x01
+	ServerHello       = 0x02
 	ClientKeyExchange = 0x10 //=16
-
+	HandShake         = 0x16
 )
 
 var TLS1_2 = []byte{0x03, 0x03}
@@ -41,7 +42,7 @@ func NewTLSRecordHeader(ctype string) TLSRecordHeader {
 	var ctypeByte byte
 	switch ctype {
 	case "Handshake":
-		ctypeByte = byte(22)
+		ctypeByte = byte(HandShake)
 	case "AppDada":
 		ctypeByte = byte(23)
 	case "Alert":
@@ -82,6 +83,28 @@ func NewClientHello() []byte {
 	return hello
 }
 
+func parseTLS(packet []byte) (TLSRecordHeader, TLSHandshake) {
+	recordByte := packet[0:6]
+	handshakeByte := packet[6:]
+
+	record := TLSRecordHeader{
+		ContentType:     recordByte[0:1],
+		ProtocolVersion: recordByte[1:3],
+		Length:          recordByte[3:5],
+	}
+	handshake := TLSHandshake{
+		HandshakeType:     handshakeByte[0:1],
+		Length:            handshakeByte[1:4],
+		Version:           handshakeByte[4:6],
+		Random:            handshakeByte[7:39],
+		SessionID:         handshakeByte[39:40],
+		CipherSuites:      handshakeByte[40:42],
+		CompressionMethod: handshakeByte[42:43],
+	}
+
+	return record, handshake
+}
+
 func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 	clienthelloPacket := NewTCPIP(tcpip)
 
@@ -92,7 +115,7 @@ func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 	// Client Helloを送る
 	err := SendIPv4Socket(sendfd, clienthelloPacket, addr)
 	if err != nil {
-		return TCPHeader{}, fmt.Errorf("Send SYN packet err : %v\n", err)
+		return TCPHeader{}, fmt.Errorf("Send SYN packet err : %v", err)
 	}
 	fmt.Printf("Send TLS Client Hellow to :%s\n", tcpip.DestIP)
 
@@ -108,11 +131,14 @@ func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 		if bytes.Equal(ip.Protocol, []byte{0x06}) && bytes.Equal(ip.SourceIPAddr, destIp) {
 			// IPヘッダを省いて20byte目からのTCPパケットをパースする
 			tcp = parseTCP(recvBuf[20:])
-			//if tcp.ControlFlags[0] == ACK {
-			//	fmt.Printf("Recv ACK from %s\n", tcpip.DestIP)
-			//	continue
-			//} else
-			if tcp.ControlFlags[0] == PSHACK {
+			if tcp.ControlFlags[0] == ACK {
+				fmt.Printf("Recv ACK from %s\n", tcpip.DestIP)
+				record, handshake := parseTLS(tcpip.Data)
+				if record.ContentType[0] == HandShake && handshake.HandshakeType[0] == ServerHello {
+					fmt.Printf("Recv ServerHello from %s\n", tcpip.DestIP)
+					break
+				}
+			} else if tcp.ControlFlags[0] == PSHACK {
 				fmt.Printf("Recv PSHACK from %s\n", tcpip.DestIP)
 				fmt.Printf("%s\n\n", string(tcp.TCPData))
 				time.Sleep(10 * time.Millisecond)
