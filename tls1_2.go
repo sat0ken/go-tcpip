@@ -140,8 +140,13 @@ func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 				}
 			} else if tcp.ControlFlags[0] == PSHACK {
 				fmt.Printf("Recv PSHACK from %s\n", tcpip.DestIP)
-				fmt.Printf("%s\n\n", string(tcp.TCPData))
+				//fmt.Printf("%s\n\n", string(tcp.TCPData))
 				time.Sleep(10 * time.Millisecond)
+
+				record, handshake := parseTLS(tcpip.Data)
+				if record.ContentType[0] == HandShake && handshake.HandshakeType[0] == ServerHello {
+					fmt.Printf("Recv ServerHello from %s\n", tcpip.DestIP)
+				}
 
 				tcpLength := uint32(sumByteArr(ip.TotalPacketLength)) - 20
 				tcpLength = tcpLength - uint32(tcp.HeaderLength[0]>>4<<2)
