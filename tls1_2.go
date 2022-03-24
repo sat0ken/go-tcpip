@@ -106,8 +106,8 @@ func parseTLS(packet []byte) (TLSRecordHeader, TLSHandshake) {
 		HandshakeType:     handshakeByte[0:1],
 		Length:            handshakeByte[1:4],
 		Version:           handshakeByte[4:6],
-		Random:            handshakeByte[7:39],
-		SessionID:         handshakeByte[39:40],
+		Random:            handshakeByte[6:38],
+		SessionID:         handshakeByte[38:40],
 		CipherSuites:      handshakeByte[40:42],
 		CompressionMethod: handshakeByte[42:43],
 	}
@@ -122,6 +122,10 @@ func startTLSHandshake(sendfd int, tcpip TCPIP, chanIPTCPTLS chan<- IPTCPTLS) /*
 	//destPort := uintTo2byte(tcpip.DestPort)
 
 	addr := setSockAddrInet4(destIp, int(tcpip.DestPort))
+	syscall.Bind(sendfd, &syscall.SockaddrInet4{
+		Port: 422779,
+		Addr: [4]byte{byte(0xc0), byte(0xa8), byte(0x00), byte(0x14)},
+	})
 	// Client Helloを送る
 	err := SendIPv4Socket(sendfd, clienthelloPacket, addr)
 	if err != nil {
@@ -129,7 +133,7 @@ func startTLSHandshake(sendfd int, tcpip TCPIP, chanIPTCPTLS chan<- IPTCPTLS) /*
 	}
 	fmt.Printf("Send TLS Client Hello to : %v\n", destIp)
 
-	var tcp TCPHeader
+	//var tcp TCPHeader
 	for {
 		recvBuf := make([]byte, 1500)
 		_, _, err := syscall.Recvfrom(sendfd, recvBuf, 0)
@@ -138,17 +142,26 @@ func startTLSHandshake(sendfd int, tcpip TCPIP, chanIPTCPTLS chan<- IPTCPTLS) /*
 		}
 		// IPヘッダをUnpackする
 		ip := parseIP(recvBuf[0:20])
+		tcp := parseTCP(recvBuf[20:])
 		//fmt.Printf("IP Header : %+v\n", ip)
-		if bytes.Equal(ip.Protocol, []byte{0x06}) && bytes.Equal(ip.SourceIPAddr, destIp) {
+		if bytes.Equal(ip.Protocol, []byte{0x06}) && bytes.Equal(ip.SourceIPAddr, destIp) && bytes.Equal(tcp.SourcePort, uintTo2byte(tcpip.DestPort)) {
 			// IPヘッダを省いて20byte目からのTCPパケットをパースする
-			tcp = parseTCP(recvBuf[20:])
-			if tcp.ControlFlags[0] == PSHACK {
+			fmt.Printf("recv data : %s\n", string(tcpip.Data))
+			if tcp.ControlFlags[0] == ACK {
+				record, handshake := parseTLS(tcpip.Data)
+				fmt.Printf("Recv PSHACK Packet from %s\n", tcpip.DestIP)
+				fmt.Printf("Recv TLSRecordHeader %+v\n", record)
+				fmt.Printf("Recv TLSHandShake Type %#x\n", handshake.HandshakeType)
+
+			} else if tcp.ControlFlags[0] == PSHACK {
 				record, handshake := parseTLS(tcpip.Data)
 				fmt.Printf("Recv PSHACK Packet from %s\n", tcpip.DestIP)
 				fmt.Printf("Recv TLSRecordHeader %+v\n", record)
 				fmt.Printf("Recv TLSHandShake %+v\n", handshake)
 
 				switch handshake.HandshakeType[0] {
+				case ClientHello:
+					fmt.Printf("Recv ClientHello from %s, %v\n", tcpip.DestIP, handshake.CipherSuites)
 				case ServerHello:
 					fmt.Printf("Recv ServerHello from %s, %v\n", tcpip.DestIP, handshake.CipherSuites)
 				case Certificate:
@@ -160,20 +173,20 @@ func startTLSHandshake(sendfd int, tcpip TCPIP, chanIPTCPTLS chan<- IPTCPTLS) /*
 					break
 				}
 
-				tcpLength := uint32(sumByteArr(ip.TotalPacketLength)) - 20
-				tcpLength = tcpLength - uint32(tcp.HeaderLength[0]>>4<<2)
-				ack := TCPIP{
-					DestIP:    tcpip.DestIP,
-					DestPort:  tcpip.DestPort,
-					TcpFlag:   "ACK",
-					SeqNumber: tcp.AcknowlegeNumber,
-					AckNumber: calcSequenceNumber(tcp.SequenceNumber, tcpLength),
-				}
-				ackPacket := NewTCPIP(ack)
-				// HTTPを受信したことに対してACKを送る
-				SendIPv4Socket(sendfd, ackPacket, addr)
-				//time.Sleep(100 * time.Millisecond)
-				fmt.Println("Send ACK to server")
+				//tcpLength := uint32(sumByteArr(ip.TotalPacketLength)) - 20
+				//tcpLength = tcpLength - uint32(tcp.HeaderLength[0]>>4<<2)
+				//ack := TCPIP{
+				//	DestIP:    tcpip.DestIP,
+				//	DestPort:  tcpip.DestPort,
+				//	TcpFlag:   "ACK",
+				//	SeqNumber: tcp.AcknowlegeNumber,
+				//	AckNumber: calcSequenceNumber(tcp.SequenceNumber, tcpLength),
+				//}
+				//ackPacket := NewTCPIP(ack)
+				//// HTTPを受信したことに対してACKを送る
+				//SendIPv4Socket(sendfd, ackPacket, addr)
+				////time.Sleep(100 * time.Millisecond)
+				//fmt.Println("Send ACK to server")
 				//break
 			} else if tcp.ControlFlags[0] == FINACK { //FIN ACKであれば
 				fmt.Println("recv FINACK from server")
