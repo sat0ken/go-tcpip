@@ -12,6 +12,9 @@ const (
 	ClientHello       = 0x01
 	ServerHello       = 0x02
 	ClientKeyExchange = 0x10 //=16
+	Certificate       = 0x0b //=11
+	ServerKeyExchange = 0x0c
+	ServerHelloDone   = 0x0e
 	HandShake         = 0x16
 )
 
@@ -121,7 +124,7 @@ func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 
 	var tcp TCPHeader
 	for {
-		recvBuf := make([]byte, 1500)
+		recvBuf := make([]byte, 65535)
 		_, _, err := syscall.Recvfrom(sendfd, recvBuf, 0)
 		if err != nil {
 			log.Fatalf("read err : %v", err)
@@ -140,6 +143,10 @@ func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 				}
 			} else if tcp.ControlFlags[0] == PSHACK {
 				fmt.Printf("Recv PSHACK from %s\n", tcpip.DestIP)
+				fmt.Printf("Recv TCP Length from %d\n", len(tcp.TCPData))
+
+				parseTLS(tcpip.Data)
+
 				fmt.Printf("%s\n\n", string(tcp.TCPData))
 				time.Sleep(10 * time.Millisecond)
 
