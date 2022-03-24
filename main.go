@@ -30,7 +30,7 @@ func main() {
 	fmt.Printf("TCP Connection is success!!\n\n")
 	time.Sleep(10 * time.Millisecond)
 
-	serverPacket := make(chan IPTCPTLS)
+	//serverPacket := make(chan IPTCPTLS)
 
 	clienthello := TCPIP{
 		DestIP:    dest,
@@ -40,7 +40,7 @@ func main() {
 		AckNumber: ack.AckNumber,
 		Data:      NewClientHello(),
 	}
-	startTLSHandshake(sendfd, clienthello, serverPacket)
+	startTLSHandshake(sendfd, clienthello)
 	//serverhello, err := startTLSHandshake(sendfd, clienthello, serverPacket)
 	//if err != nil {
 	//	log.Fatal(err)
