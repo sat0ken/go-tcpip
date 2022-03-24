@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+// おまじない
+// sudo sh -c 'echo 3 > /proc/sys/net/ipv4/tcp_retries2'
+// sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
+
 func main() {
 	dest := "13.114.40.48"
 	var port uint16 = 443
@@ -26,6 +30,8 @@ func main() {
 	fmt.Printf("TCP Connection is success!!\n\n")
 	time.Sleep(10 * time.Millisecond)
 
+	//serverPacket := make(chan IPTCPTLS)
+
 	clienthello := TCPIP{
 		DestIP:    dest,
 		DestPort:  port,
@@ -34,22 +40,32 @@ func main() {
 		AckNumber: ack.AckNumber,
 		Data:      NewClientHello(),
 	}
-	serverhello, err := startTLSHandshake(sendfd, clienthello)
-	if err != nil {
-		log.Fatal(err)
-	}
+	startTLSHandshake(sendfd, clienthello)
+	//serverhello, err := startTLSHandshake(sendfd, clienthello, serverPacket)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//all := <-serverPacket
+	//for {
+	//	<-serverPacket
+	//	fmt.Println(serverPacket)
+	//	//switch allpacket {
+	//	//
+	//	//}
+	//	//break
+	//}
 
-	fin := TCPIP{
-		DestIP:    dest,
-		DestPort:  port,
-		TcpFlag:   "FINACK",
-		SeqNumber: serverhello.SequenceNumber,
-		AckNumber: serverhello.AcknowlegeNumber,
-	}
-	fmt.Printf("Send FINACK packet to %s\n", dest)
-	_, err = startTCPConnection(sendfd, fin)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("TCP Connection Close is success!!\n")
+	//fin := TCPIP{
+	//	DestIP:    dest,
+	//	DestPort:  port,
+	//	TcpFlag:   "FINACK",
+	//	SeqNumber: all.TCPHeader.SequenceNumber,
+	//	AckNumber: all.TCPHeader.AcknowlegeNumber,
+	//}
+	//fmt.Printf("Send FINACK packet to %s\n", dest)
+	//_, err = startTCPConnection(sendfd, fin)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//fmt.Printf("TCP Connection Close is success!!\n")
 }
