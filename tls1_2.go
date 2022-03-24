@@ -99,8 +99,8 @@ func parseTLS(packet []byte) (TLSRecordHeader, TLSHandshake) {
 		HandshakeType:     handshakeByte[0:1],
 		Length:            handshakeByte[1:4],
 		Version:           handshakeByte[4:6],
-		Random:            handshakeByte[7:39],
-		SessionID:         handshakeByte[39:40],
+		Random:            handshakeByte[6:38],
+		SessionID:         handshakeByte[38:40],
 		CipherSuites:      handshakeByte[40:42],
 		CompressionMethod: handshakeByte[42:43],
 	}
@@ -115,6 +115,10 @@ func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 	//destPort := uintTo2byte(tcpip.DestPort)
 
 	addr := setSockAddrInet4(destIp, int(tcpip.DestPort))
+	syscall.Bind(sendfd, &syscall.SockaddrInet4{
+		Port: 422779,
+		Addr: [4]byte{byte(0xc0), byte(0xa8), byte(0x00), byte(0x14)},
+	})
 	// Client Helloを送る
 	err := SendIPv4Socket(sendfd, clienthelloPacket, addr)
 	if err != nil {
@@ -122,7 +126,7 @@ func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 	}
 	fmt.Printf("Send TLS Client Hellow to :%s\n", tcpip.DestIP)
 
-	var tcp TCPHeader
+	//var tcp TCPHeader
 	for {
 		recvBuf := make([]byte, 65535)
 		_, _, err := syscall.Recvfrom(sendfd, recvBuf, 0)
