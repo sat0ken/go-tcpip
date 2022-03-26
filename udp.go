@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"syscall"
@@ -42,7 +43,7 @@ func NewUDPDummyHeader(header IPHeader) UDPDummyHeader {
 func (*UDPHeader) Send(packet []byte) {
 	addr := syscall.SockaddrLinklayer{
 		Protocol: syscall.ETH_P_IP,
-		Ifindex:  1,
+		Ifindex:  5,
 	}
 
 	sendfd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(htons(syscall.ETH_P_ALL)))
@@ -55,7 +56,34 @@ func (*UDPHeader) Send(packet []byte) {
 		log.Fatalf("Send to err : %v\n", err)
 	}
 	fmt.Println("UDP packet send")
+
 	syscall.Close(sendfd)
+}
+
+func (*UDPHeader) recv(localip []byte) {
+
+	recvfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_UDP)
+	if err != nil {
+		log.Fatalf("create udp sendfd err : %v\n", err)
+	}
+	syscall.Bind(recvfd, &syscall.SockaddrInet4{
+		Addr: [4]byte{localip[0], localip[1], localip[2], localip[3]},
+		Port: 42279,
+	})
+
+	for {
+		recvBuf := make([]byte, 300)
+		_, _, err := syscall.Recvfrom(recvfd, recvBuf, 0)
+		if err != nil {
+			log.Fatalf("read err : %v", err)
+		}
+		ip := parseIP(recvBuf[0:20])
+		if recvBuf[9] == 0x11 && bytes.Equal(ip.DstIPAddr, localip) {
+			// Ethernetが14byte, IPヘッダが20byteなので34byte目からがICMPパケット
+			fmt.Printf("dns packet : %s\n", printByteArr(recvBuf[28:]))
+		}
+	}
+
 }
 
 func udpSend() {

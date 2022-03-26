@@ -6,6 +6,11 @@ import (
 	"reflect"
 )
 
+func paddingZero(arr []byte) []byte {
+	padarr := append(arr, 0x00)
+	return padarr
+}
+
 func printByteArr(arr []byte) string {
 	var str string
 	for _, v := range arr {

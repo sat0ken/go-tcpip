@@ -12,7 +12,7 @@ import (
 // sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 
 func main() {
-	unpackTLSPacket(packet_bytes)
+	sendDNS()
 }
 
 func __main() {
