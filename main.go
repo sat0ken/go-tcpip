@@ -12,6 +12,10 @@ import (
 // sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 
 func main() {
+	unpackTLSPacket(packet_bytes)
+}
+
+func __main() {
 	dest := "13.114.40.48"
 	var port uint16 = 443
 
@@ -40,11 +44,11 @@ func main() {
 		AckNumber: ack.AckNumber,
 		Data:      NewClientHello(),
 	}
-	startTLSHandshake(sendfd, clienthello)
-	//serverhello, err := startTLSHandshake(sendfd, clienthello, serverPacket)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
+	//startTLSHandshake(sendfd, clienthello)
+	serverhello, err := startTLSHandshake(sendfd, clienthello)
+	if err != nil {
+		log.Fatal(err)
+	}
 	//all := <-serverPacket
 	//for {
 	//	<-serverPacket
@@ -55,17 +59,17 @@ func main() {
 	//	//break
 	//}
 
-	//fin := TCPIP{
-	//	DestIP:    dest,
-	//	DestPort:  port,
-	//	TcpFlag:   "FINACK",
-	//	SeqNumber: all.TCPHeader.SequenceNumber,
-	//	AckNumber: all.TCPHeader.AcknowlegeNumber,
-	//}
-	//fmt.Printf("Send FINACK packet to %s\n", dest)
-	//_, err = startTCPConnection(sendfd, fin)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//fmt.Printf("TCP Connection Close is success!!\n")
+	fin := TCPIP{
+		DestIP:    dest,
+		DestPort:  port,
+		TcpFlag:   "FINACK",
+		SeqNumber: serverhello.SequenceNumber,
+		AckNumber: serverhello.AcknowlegeNumber,
+	}
+	fmt.Printf("Send FINACK packet to %s\n", dest)
+	_, err = startTCPConnection(sendfd, fin)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("TCP Connection Close is success!!\n")
 }

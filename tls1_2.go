@@ -8,44 +8,11 @@ import (
 	"time"
 )
 
-const (
-	ClientHello       = 0x01
-	ServerHello       = 0x02
-	ClientKeyExchange = 0x10 //=16
-	Certificate       = 0x0b //=11
-	ServerKeyExchange = 0x0c
-	ServerHelloDone   = 0x0e
-	HandShake         = 0x16
-)
-
-var TLS1_2 = []byte{0x03, 0x03}
-
-// https://www.ipa.go.jp/security/rfc/RFC5246-AAJA.html
-type TLSRecordHeader struct {
-	ContentType     []byte
-	ProtocolVersion []byte
-	Length          []byte
-}
-
-type TLSHandshake struct {
-	HandshakeType      []byte
-	Length             []byte
-	Version            []byte
-	Random             []byte
-	SessionID          []byte
-	CipherSuitesLength []byte
-	CipherSuites       []byte
-	CompressionLength  []byte
-	CompressionMethod  []byte
-	ExtensionLength    []byte
-	Extension          []byte
-}
-
 func NewTLSRecordHeader(ctype string) TLSRecordHeader {
 	var ctypeByte byte
 	switch ctype {
 	case "Handshake":
-		ctypeByte = byte(HandShake)
+		ctypeByte = byte(TypeHandShake)
 	case "AppDada":
 		ctypeByte = byte(23)
 	case "Alert":
@@ -64,8 +31,8 @@ func NewTLSRecordHeader(ctype string) TLSRecordHeader {
 func NewClientHello() []byte {
 	record := NewTLSRecordHeader("Handshake")
 	cipher := getChipersList()
-	handshake := TLSHandshake{
-		HandshakeType:      []byte{ClientHello},
+	handshake := ClientHello{
+		HandshakeType:      []byte{TypeClientHello},
 		Length:             []byte{0x00, 0x00, 0x00},
 		Version:            TLS1_2,
 		Random:             random32byte(),
@@ -86,7 +53,68 @@ func NewClientHello() []byte {
 	return hello
 }
 
-func parseTLS(packet []byte) (TLSRecordHeader, TLSHandshake) {
+func unpackTLSHandshake(packet []byte) interface{} {
+	//fmt.Printf("TLS Handshake byte : %d, %x\n", len(packet), packet)
+	var i interface{}
+
+	switch packet[0] {
+	case TypeServerHello:
+		i = ServerHello{
+			HandshakeType:     packet[0:1],
+			Length:            packet[1:4],
+			Version:           packet[4:6],
+			Random:            packet[6:38],
+			SessionID:         packet[38:39],
+			CipherSuites:      packet[40:42],
+			CompressionMethod: packet[42:],
+		}
+	case TypeCertificate:
+		i = CertifiateProto{
+			HandshakeType:      packet[0:1],
+			Length:             packet[1:4],
+			CertificatesLength: packet[4:7],
+			Certificates:       nil,
+		}
+	case TypeServerKeyExchange:
+		i = ServerKeyExchange{
+			HandshakeType:               packet[0:1],
+			Length:                      packet[1:4],
+			ECDiffieHellmanServerParams: packet[4:],
+		}
+	case TypeServerHelloDone:
+		i = ServerHelloDone{
+			HandshakeType: packet[0:1],
+			Length:        packet[1:],
+		}
+	}
+	return i
+}
+
+func unpackTLSPacket(packet []byte) {
+	// TCPのデータをContentType、TLSバージョンのbyte配列でSplitする
+	splitByte := bytes.Split(packet, []byte{0x16, 0x03, 0x03})
+	for _, v := range splitByte {
+		if len(v) != 0 {
+			rHeader := TLSRecordHeader{
+				ContentType:     []byte{0x16},
+				ProtocolVersion: []byte{0x03, 0x04},
+				Length:          v[0:2],
+			}
+			tls := unpackTLSHandshake(v[2:])
+			fmt.Printf("handshak tls record header : %+v\n", rHeader)
+			fmt.Printf("handshak tls record header : %+v\n", tls)
+		}
+	}
+
+	//fmt.Printf("total tls length : %d\n", lenght)
+	//fmt.Printf("first tls length : %d\n", sumByteArr(record.Length)+5)
+	//first := packet[0 : sumByteArr(record.Length)+5]
+	//_ = first
+	//packet = packet[sumByteArr(record.Length)+5:]
+	//fmt.Printf("total tls length : %d\n", len(packet))
+}
+
+func parseTLS(packet []byte, tlslegth uint) (TLSRecordHeader, ClientHello) {
 	recordByte := packet[0:6]
 	handshakeByte := packet[6:]
 
@@ -95,7 +123,7 @@ func parseTLS(packet []byte) (TLSRecordHeader, TLSHandshake) {
 		ProtocolVersion: recordByte[1:3],
 		Length:          recordByte[3:5],
 	}
-	handshake := TLSHandshake{
+	handshake := ClientHello{
 		HandshakeType:     handshakeByte[0:1],
 		Length:            handshakeByte[1:4],
 		Version:           handshakeByte[4:6],
@@ -126,7 +154,7 @@ func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 	}
 	fmt.Printf("Send TLS Client Hellow to :%s\n", tcpip.DestIP)
 
-	//var tcp TCPHeader
+	var tcp TCPHeader
 	for {
 		recvBuf := make([]byte, 65535)
 		_, _, err := syscall.Recvfrom(sendfd, recvBuf, 0)
@@ -138,18 +166,19 @@ func startTLSHandshake(sendfd int, tcpip TCPIP) (TCPHeader, error) {
 		if bytes.Equal(ip.Protocol, []byte{0x06}) && bytes.Equal(ip.SourceIPAddr, destIp) {
 			// IPヘッダを省いて20byte目からのTCPパケットをパースする
 			tcp = parseTCP(recvBuf[20:])
-			if tcp.ControlFlags[0] == ACK {
-				fmt.Printf("Recv ACK from %s\n", tcpip.DestIP)
-				record, handshake := parseTLS(tcpip.Data)
-				if record.ContentType[0] == HandShake && handshake.HandshakeType[0] == ServerHello {
-					fmt.Printf("Recv ServerHello from %s\n", tcpip.DestIP)
-					break
-				}
-			} else if tcp.ControlFlags[0] == PSHACK {
+			//if tcp.ControlFlags[0] == ACK {
+			//	fmt.Printf("Recv ACK from %s\n", tcpip.DestIP)
+			//	record, handshake := parseTLS(tcpip.Data, sumByteArr(ip.TotalPacketLength)-40)
+			//	if record.ContentType[0] == HandShake && handshake.HandshakeType[0] == ServerHello {
+			//		fmt.Printf("Recv ServerHello from %s\n", tcpip.DestIP)
+			//		break
+			//	}
+			//} else
+			if tcp.ControlFlags[0] == PSHACK {
 				fmt.Printf("Recv PSHACK from %s\n", tcpip.DestIP)
-				fmt.Printf("Recv TCP Length from %d\n", len(tcp.TCPData))
+				fmt.Printf("Recv TCP Length from is %d\n", sumByteArr(ip.TotalPacketLength)-40)
 
-				parseTLS(tcpip.Data)
+				parseTLS(tcpip.Data, sumByteArr(ip.TotalPacketLength)-40)
 
 				fmt.Printf("%s\n\n", string(tcp.TCPData))
 				time.Sleep(10 * time.Millisecond)
