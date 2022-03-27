@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"syscall"
@@ -53,8 +54,68 @@ func NewClientHello() []byte {
 	return hello
 }
 
+func readCertificates(packet []byte) []*x509.Certificate {
+
+	var b []byte
+	var certificates []*x509.Certificate
+
+	//　https://pkg.go.dev/crypto/x509#SystemCertPool
+	// OSにインストールされている証明書を読み込む
+	ospool, err := x509.SystemCertPool()
+	if err != nil {
+		log.Fatalf("get SystemCertPool err : %v\n", err)
+	}
+	//fmt.Printf("%+v\n", ospool)
+
+	// TLS Handshak protocolのCertificatesのLengthが0になるまでx509証明書をReadする
+	// 読み込んだx509証明書を配列に入れる
+	for {
+		if len(packet) == 0 {
+			break
+		} else {
+			length := sum3BytetoLength(packet[0:3])
+			//b := make([]byte, length)
+			b = readByteNum(packet, 3, int64(length))
+			cert, err := x509.ParseCertificate(b)
+			if err != nil {
+				log.Fatalf("ParseCertificate error : %v\n", err)
+			}
+			certificates = append(certificates, cert)
+			//byte配列を縮める
+			packet = packet[3+length:]
+		}
+	}
+
+	// 証明書を検証する
+	// 配列にはサーバ証明書、中間証明書の順番で格納されているので中間証明書から検証していく
+	for i := len(certificates) - 1; i >= 0; i-- {
+		var opts x509.VerifyOptions
+		if len(certificates[i].DNSNames) == 0 {
+			opts = x509.VerifyOptions{
+				Roots: ospool,
+			}
+		} else {
+			opts = x509.VerifyOptions{
+				DNSName: certificates[i].DNSNames[0],
+				Roots:   ospool,
+			}
+		}
+
+		// 検証
+		_, err = certificates[i].Verify(opts)
+		if err != nil {
+			log.Fatalf("failed to verify certificate : %v\n", err)
+		}
+		if 0 < i {
+			ospool.AddCert(certificates[1])
+		}
+		fmt.Println("証明書マジ正しい！")
+	}
+
+	return certificates
+}
+
 func unpackTLSHandshake(packet []byte) interface{} {
-	//fmt.Printf("TLS Handshake byte : %d, %x\n", len(packet), packet)
 	var i interface{}
 
 	switch packet[0] {
@@ -73,7 +134,7 @@ func unpackTLSHandshake(packet []byte) interface{} {
 			HandshakeType:      packet[0:1],
 			Length:             packet[1:4],
 			CertificatesLength: packet[4:7],
-			Certificates:       nil,
+			Certificates:       readCertificates(packet[7:]),
 		}
 	case TypeServerKeyExchange:
 		i = ServerKeyExchange{
@@ -87,6 +148,7 @@ func unpackTLSHandshake(packet []byte) interface{} {
 			Length:        packet[1:],
 		}
 	}
+
 	return i
 }
 
@@ -101,8 +163,10 @@ func unpackTLSPacket(packet []byte) {
 				Length:          v[0:2],
 			}
 			tls := unpackTLSHandshake(v[2:])
-			fmt.Printf("handshak tls record header : %+v\n", rHeader)
-			fmt.Printf("handshak tls record header : %+v\n", tls)
+			fmt.Printf("handshak tls protocol : %+v\n", tls)
+			_, _ = rHeader, tls
+			//fmt.Printf("handshak tls record header : %+v\n", rHeader)
+			//fmt.Printf("handshak tls record header : %+v\n", tls)
 		}
 	}
 

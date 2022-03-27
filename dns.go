@@ -32,6 +32,7 @@ func NewDNSQuery(host string) DNS {
 		// https://atmarkit.itmedia.co.jp/ait/articles/1601/29/news014.html
 		// Flags 1byte: QR = 0, OPCode = 0000, AA = 0, TC = 0, RD = 1 → 0x01
 		// Flags 2byte: RA = 0, Z = 0, AD = 1, CD = 0, RCode = 0000   → 100000 = 32 = 0x20
+		// https://yoshida-eth0.hatenablog.com/entry/20110203/1296675571
 		Flags:      []byte{0x01, 0x00},
 		Questions:  []byte{0x00, 0x01},
 		Answers:    []byte{0x00, 0x00},

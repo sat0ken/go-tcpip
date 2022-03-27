@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"reflect"
+	"strconv"
 )
 
 func paddingZero(arr []byte) []byte {
@@ -18,6 +19,11 @@ func printByteArr(arr []byte) string {
 		str += fmt.Sprintf("%x ", v)
 	}
 	return str
+}
+
+func sum3BytetoLength(arr []byte) uint64 {
+	length, _ := strconv.ParseUint(fmt.Sprintf("%x", arr), 16, 16)
+	return length
 }
 
 func sumByteArr(arr []byte) uint {

@@ -1,5 +1,7 @@
 package main
 
+import "crypto/x509"
+
 const (
 	TypeClientHello       = 0x01
 	TypeServerHello       = 0x02
@@ -29,7 +31,11 @@ type ServerHello struct {
 	CompressionMethod []byte
 }
 
+// https://www.moj.go.jp/ONLINE/CERTIFICATION/SYSTEM/system.html
+// https://www.ipa.go.jp/security/rfc/RFC5280-00JA.html
 type signedCertificate struct {
+	version              []byte
+	serialNumber         []byte
 	signature            []byte
 	issuer               []byte
 	subject              []byte
@@ -37,19 +43,15 @@ type signedCertificate struct {
 }
 
 type Certificate struct {
+	length            []byte
 	signedCertificate signedCertificate
-}
-
-type TLSCertificate struct {
-	Length      []byte
-	Certificate Certificate
 }
 
 type CertifiateProto struct {
 	HandshakeType      []byte
 	Length             []byte
 	CertificatesLength []byte
-	Certificates       []TLSCertificate
+	Certificates       []*x509.Certificate
 }
 
 type ServerKeyExchange struct {

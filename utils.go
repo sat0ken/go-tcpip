@@ -2,6 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"io"
+	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -66,4 +69,17 @@ func getChipersList() []byte {
 		b = append(b, byte(byte2))
 	}
 	return b
+}
+
+func readByteNum(packet []byte, offset, n int64) []byte {
+	r := bytes.NewReader(packet)
+	sr := io.NewSectionReader(r, offset, n)
+
+	buf := make([]byte, n)
+	_, err := sr.Read(buf)
+	if err != nil {
+		log.Fatalf("read byte err : %v\n", err)
+	}
+	
+	return buf
 }
