@@ -170,7 +170,7 @@ func unpackTLSPacket(packet []byte) {
 		}
 	}
 
-	//fmt.Printf("total tls length : %d\n", lenght)
+	//fmt.Printf("total tls length : %d\n", length)
 	//fmt.Printf("first tls length : %d\n", sumByteArr(record.Length)+5)
 	//first := packet[0 : sumByteArr(record.Length)+5]
 	//_ = first
