@@ -57,7 +57,7 @@ type CertifiateProto struct {
 type ServerKeyExchange struct {
 	HandshakeType               []byte
 	Length                      []byte
-	ECDiffieHellmanServerParams []byte
+	ECDiffieHellmanServerParams ECDiffieHellmanParam
 }
 
 type ServerHelloDone struct {
@@ -75,4 +75,15 @@ type ClientHello struct {
 	CipherSuites       []byte
 	CompressionLength  []byte
 	CompressionMethod  []byte
+}
+
+// https://www.ipa.go.jp/security/rfc/RFC5246-07JA.html#0743
+type ECDiffieHellmanParam struct {
+	CurveType          []byte
+	NamedCurve         []byte
+	PubkeyLength       []byte
+	Pubkey             []byte
+	SignatureAlgorithm []byte
+	SignatureLength    []byte
+	Signature          []byte
 }

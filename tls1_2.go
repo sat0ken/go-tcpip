@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"syscall"
@@ -114,6 +116,18 @@ func readCertificates(packet []byte) []*x509.Certificate {
 
 	return certificates
 }
+func unpackECDiffieHellmanParam(packet []byte) ECDiffieHellmanParam {
+
+	return ECDiffieHellmanParam{
+		CurveType:          packet[0:1],
+		NamedCurve:         packet[1:3],
+		PubkeyLength:       packet[3:4],
+		Pubkey:             readByteNum(packet, 4, 32),
+		SignatureAlgorithm: packet[36:38],
+		SignatureLength:    packet[38:40],
+		Signature:          packet[40:],
+	}
+}
 
 func unpackTLSHandshake(packet []byte) interface{} {
 	var i interface{}
@@ -126,9 +140,12 @@ func unpackTLSHandshake(packet []byte) interface{} {
 			Version:           packet[4:6],
 			Random:            packet[6:38],
 			SessionID:         packet[38:39],
-			CipherSuites:      packet[40:42],
-			CompressionMethod: packet[42:],
+			CipherSuites:      packet[39:41],
+			CompressionMethod: packet[41:],
 		}
+		fmt.Printf("ServerHello : %+v\n", i)
+		fmt.Printf("Cipher Suite bytes is : %x\n", packet[39:41])
+		fmt.Printf("Cipher Suite is : %s\n", tls.CipherSuiteName(binary.BigEndian.Uint16(packet[39:41])))
 	case TypeCertificate:
 		i = CertifiateProto{
 			HandshakeType:      packet[0:1],
@@ -136,17 +153,20 @@ func unpackTLSHandshake(packet []byte) interface{} {
 			CertificatesLength: packet[4:7],
 			Certificates:       readCertificates(packet[7:]),
 		}
+		fmt.Printf("Certificate : %+v\n", i)
 	case TypeServerKeyExchange:
 		i = ServerKeyExchange{
 			HandshakeType:               packet[0:1],
 			Length:                      packet[1:4],
-			ECDiffieHellmanServerParams: packet[4:],
+			ECDiffieHellmanServerParams: unpackECDiffieHellmanParam(packet[4:]),
 		}
+		fmt.Printf("ServerKeyExchange : %+v\n", i)
 	case TypeServerHelloDone:
 		i = ServerHelloDone{
 			HandshakeType: packet[0:1],
 			Length:        packet[1:],
 		}
+		fmt.Printf("ServerHelloDone : %+v\n", i)
 	}
 
 	return i
@@ -163,7 +183,7 @@ func unpackTLSPacket(packet []byte) {
 				Length:          v[0:2],
 			}
 			tls := unpackTLSHandshake(v[2:])
-			fmt.Printf("handshak tls protocol : %+v\n", tls)
+			//fmt.Printf("handshak tls protocol : %+v\n", tls)
 			_, _ = rHeader, tls
 			//fmt.Printf("handshak tls record header : %+v\n", rHeader)
 			//fmt.Printf("handshak tls record header : %+v\n", tls)
