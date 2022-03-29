@@ -230,7 +230,29 @@ func unpackTLSPacket(packet []byte) []TLSProtocol {
 			protocols = append(protocols, proto)
 		}
 	}
-	return protocols
+}
+
+func parseTLS(packet []byte, tlslegth uint) (TLSRecordHeader, ClientHello) {
+	recordByte := packet[0:6]
+	handshakeByte := packet[6:]
+
+	record := TLSRecordHeader{
+		ContentType:     recordByte[0:1],
+		ProtocolVersion: recordByte[1:3],
+		Length:          recordByte[3:5],
+	}
+	handshake := ClientHello{
+		HandshakeType:     handshakeByte[0:1],
+		Length:            handshakeByte[1:4],
+		Version:           handshakeByte[4:6],
+		Random:            handshakeByte[6:38],
+		SessionID:         handshakeByte[38:40],
+		CipherSuites:      handshakeByte[40:42],
+		CompressionMethod: handshakeByte[42:43],
+	}
+
+	return record, handshake
+
 }
 
 func startTLSHandshake(sendfd int, sendInfo TCPIP) (TCPHeader, error) {
