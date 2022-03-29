@@ -2,7 +2,7 @@ package main
 
 // https://www.infraexpert.com/study/tcpip1.html
 type IPHeader struct {
-	VersionAndHeaderLenght []byte
+	VersionAndHeaderLength []byte
 	ServiceType            []byte
 	TotalPacketLength      []byte
 	PacketIdentification   []byte
@@ -17,7 +17,7 @@ type IPHeader struct {
 func NewIPHeader(sourceIp, dstIp []byte, protocol string) IPHeader {
 
 	ip := IPHeader{
-		VersionAndHeaderLenght: []byte{0x45},
+		VersionAndHeaderLength: []byte{0x45},
 		ServiceType:            []byte{0x00},
 		TotalPacketLength:      []byte{0x00, 0x00},
 		PacketIdentification:   []byte{0x00, 0x00},
@@ -36,6 +36,6 @@ func NewIPHeader(sourceIp, dstIp []byte, protocol string) IPHeader {
 	case "TCP":
 		ip.Protocol = []byte{0x06}
 	}
-	
+
 	return ip
 }

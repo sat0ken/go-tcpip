@@ -16,7 +16,7 @@ func parseEth(packet []byte) EthernetFrame {
 
 func parseIP(packet []byte) IPHeader {
 	return IPHeader{
-		VersionAndHeaderLenght: packet[0:1],
+		VersionAndHeaderLength: packet[0:1],
 		ServiceType:            packet[1:2],
 		TotalPacketLength:      packet[2:4],
 		PacketIdentification:   packet[4:6],
