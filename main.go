@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"syscall"
@@ -12,11 +14,27 @@ import (
 // sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 
 func main() {
+	premaster := randomByte(48)
+	clientRandom := randomByte(32)
+	serverRandom := randomByte(32)
+
+	var clientServerRandomByte []byte
+	clientServerRandomByte = append(clientServerRandomByte, clientRandom...)
+	clientServerRandomByte = append(clientServerRandomByte, serverRandom...)
+
+	result := createMasterSecret(premaster, clientServerRandomByte)
+	result2 := createMasterSecret(premaster, clientServerRandomByte)
+	fmt.Printf("%x\n", result)
+	fmt.Printf("%x\n", result2)
+
+}
+
+func __main() {
 	serverTLS := unpackTLSPacket(rsaByte)
 	for _, v := range serverTLS {
 		switch proto := v.HandshakeProtocol.(type) {
 		case ServerHello:
-			fmt.Println(proto.CipherSuites)
+			fmt.Printf("Cipher Suite is : %s\n", tls.CipherSuiteName(binary.BigEndian.Uint16(proto.CipherSuites)))
 		case ServerCertifiate:
 			fmt.Printf("%T\n", proto.Certificates[0].PublicKey)
 			fmt.Println(proto.Certificates[0].PublicKey)
@@ -47,13 +65,15 @@ func _main() {
 
 	//serverPacket := make(chan IPTCPTLS)
 
+	var hello ClientHello
+
 	clienthello := TCPIP{
 		DestIP:    dest,
 		DestPort:  port,
 		TcpFlag:   "PSHACK",
 		SeqNumber: ack.SeqNumber,
 		AckNumber: ack.AckNumber,
-		Data:      NewClientHello(),
+		Data:      hello.NewClientHello(),
 	}
 	//startTLSHandshake(sendfd, clienthello)
 	serverhello, err := startTLSHandshake(sendfd, clienthello)

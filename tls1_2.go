@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func NewTLSRecordHeader(ctype string) TLSRecordHeader {
+func (*TLSRecordHeader) NewTLSRecordHeader(ctype string) TLSRecordHeader {
 	var ctypeByte byte
 	switch ctype {
 	case "Handshake":
@@ -31,8 +31,10 @@ func NewTLSRecordHeader(ctype string) TLSRecordHeader {
 	}
 }
 
-func NewClientHello() []byte {
-	record := NewTLSRecordHeader("Handshake")
+func (*ClientHello) NewClientHello() []byte {
+	var record TLSRecordHeader
+	record = record.NewTLSRecordHeader("Handshake")
+
 	cipher := getChipersList()
 	handshake := ClientHello{
 		HandshakeType:      []byte{TypeClientHello},
@@ -56,12 +58,20 @@ func NewClientHello() []byte {
 	return hello
 }
 
-func NewClientKeyExchange(pubkey *rsa.PublicKey) []byte {
-	record := NewTLSRecordHeader("Handshake")
+func (*ClientKeyExchange) NewClientKeyExchange(pubkey *rsa.PublicKey) []byte {
+	var record TLSRecordHeader
+	record = record.NewTLSRecordHeader("Handshake")
 
-	// 48byteのランダムなpremaster secretを生成してサーバの公開鍵で暗号化する
-	premaster := randomByte(48)
-	secret, err := rsa.EncryptPKCS1v15(rand.Reader, pubkey, premaster)
+	var premasterByte []byte
+
+	// 46byteのランダムなpremaster secretを生成する
+	// https://www.ipa.go.jp/security/rfc/RFC5246-07JA.html#07471
+	premaster := randomByte(46)
+	premasterByte = append(premasterByte, TLS1_2...)
+	premasterByte = append(premasterByte, premaster...)
+
+	//サーバの公開鍵で暗号化する
+	secret, err := rsa.EncryptPKCS1v15(rand.Reader, pubkey, premasterByte)
 	if err != nil {
 		log.Fatalf("create premaster secret err : %v\n", err)
 	}
@@ -86,7 +96,8 @@ func NewClientKeyExchange(pubkey *rsa.PublicKey) []byte {
 }
 
 func NewChangeCipherSpec() []byte {
-	record := NewTLSRecordHeader("ChangeCipherSpec")
+	var record TLSRecordHeader
+	record = record.NewTLSRecordHeader("ChangeCipherSpec")
 	record.Length = []byte{0x00, 0x01}
 
 	var changeCipher []byte

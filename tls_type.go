@@ -15,6 +15,9 @@ const (
 
 var TLS1_2 = []byte{0x03, 0x03}
 
+// 固定のラベル
+var MasterSecretLable = []byte(`master secret`)
+
 // https://www.ipa.go.jp/security/rfc/RFC5246-AAJA.html
 type TLSRecordHeader struct {
 	ContentType     []byte
@@ -30,17 +33,6 @@ type ServerHello struct {
 	SessionID         []byte
 	CipherSuites      []byte
 	CompressionMethod []byte
-}
-
-// https://www.moj.go.jp/ONLINE/CERTIFICATION/SYSTEM/system.html
-// https://www.ipa.go.jp/security/rfc/RFC5280-00JA.html
-type signedCertificate struct {
-	version              []byte
-	serialNumber         []byte
-	signature            []byte
-	issuer               []byte
-	subject              []byte
-	subjectPublickeyInfo []byte
 }
 
 type ServerCertifiate struct {
@@ -104,4 +96,7 @@ type ClientKeyExchange struct {
 }
 
 type FinishedMessage struct {
+	MasterSecret  []byte
+	FinishedLable []byte
+	Hash          []byte
 }
