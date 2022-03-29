@@ -40,9 +40,9 @@ func getLocalIpAddr(ifname string) (localif LocalIpMacAddr, err error) {
 	return localif, nil
 }
 
-// TLSのClientHelloで32byteの乱数をセット
-func random32byte() []byte {
-	b := make([]byte, 32)
+// https://www.ipa.go.jp/security/rfc/RFC5246-08JA.html
+func randomByte(num int) []byte {
+	b := make([]byte, num)
 	rand.Read(b)
 	return b
 }

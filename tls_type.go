@@ -10,6 +10,7 @@ const (
 	TypeServerKeyExchange = 0x0c
 	TypeServerHelloDone   = 0x0e
 	TypeHandShake         = 0x16
+	TypeChangeCipherSpec  = 0x14 //=20
 )
 
 var TLS1_2 = []byte{0x03, 0x03}
@@ -42,18 +43,14 @@ type signedCertificate struct {
 	subjectPublickeyInfo []byte
 }
 
-type Certificate struct {
-	length            []byte
-	signedCertificate signedCertificate
-}
-
-type CertifiateProto struct {
+type ServerCertifiate struct {
 	HandshakeType      []byte
 	Length             []byte
 	CertificatesLength []byte
 	Certificates       []*x509.Certificate
 }
 
+// https://tex2e.github.io/rfc-translater/html/rfc8422.html
 type ServerKeyExchange struct {
 	HandshakeType               []byte
 	Length                      []byte
@@ -86,4 +83,25 @@ type ECDiffieHellmanParam struct {
 	SignatureAlgorithm []byte
 	SignatureLength    []byte
 	Signature          []byte
+}
+
+type TLSProtocol struct {
+	RHeader           TLSRecordHeader
+	HandshakeProtocol interface{}
+}
+
+// https://qiita.com/n-i-e/items/41673fd16d7bd1189a29
+type ClientKeyExchange struct {
+	HandshakeType []byte
+	Length        []byte
+
+	// RSA
+	EncryptedPreMasterSecretLength []byte
+	EncryptedPreMasterSecret       []byte
+	// ECDHE
+	// PubkeyLength []byte
+	// Pubkey []byte
+}
+
+type FinishedMessage struct {
 }
