@@ -12,10 +12,21 @@ import (
 // sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 
 func main() {
-	unpackTLSPacket(packet_bytes)
+	serverTLS := unpackTLSPacket(rsaByte)
+	for _, v := range serverTLS {
+		switch proto := v.HandshakeProtocol.(type) {
+		case ServerHello:
+			fmt.Println(proto.CipherSuites)
+		case ServerCertifiate:
+			fmt.Printf("%T\n", proto.Certificates[0].PublicKey)
+			fmt.Println(proto.Certificates[0].PublicKey)
+		case ServerHelloDone:
+			fmt.Println("ServerHelloDone")
+		}
+	}
 }
 
-func __main() {
+func _main() {
 	dest := "13.114.40.48"
 	var port uint16 = 443
 
