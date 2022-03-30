@@ -30,7 +30,7 @@ func main() {
 }
 
 func __main() {
-	serverTLS := unpackTLSPacket(rsaByte)
+	serverTLS, protoBytes := unpackTLSPacket(rsaByte)
 	for _, v := range serverTLS {
 		switch proto := v.HandshakeProtocol.(type) {
 		case ServerHello:
@@ -42,6 +42,7 @@ func __main() {
 			fmt.Println("ServerHelloDone")
 		}
 	}
+	_ = protoBytes
 }
 
 func _main() {

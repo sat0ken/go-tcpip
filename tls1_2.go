@@ -221,8 +221,9 @@ func unpackTLSHandshake(packet []byte) interface{} {
 	return i
 }
 
-func unpackTLSPacket(packet []byte) []TLSProtocol {
+func unpackTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 	var protocols []TLSProtocol
+	var protocolsByte []byte
 
 	// TCPのデータをContentType、TLSバージョンのbyte配列でSplitする
 	splitByte := bytes.Split(packet, []byte{0x16, 0x03, 0x03})
@@ -238,9 +239,11 @@ func unpackTLSPacket(packet []byte) []TLSProtocol {
 				RHeader:           rHeader,
 				HandshakeProtocol: tls,
 			}
+			protocolsByte = append(protocolsByte, v[2:]...)
 			protocols = append(protocols, proto)
 		}
 	}
+	return protocols, protocolsByte
 }
 
 func parseTLS(packet []byte, tlslegth uint) (TLSRecordHeader, ClientHello) {
