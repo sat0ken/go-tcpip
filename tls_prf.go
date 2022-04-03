@@ -45,3 +45,32 @@ func createMasterSecret(premastersecret, clientServerRandom []byte) []byte {
 	seed = append(seed, clientServerRandom...)
 	return phash(premastersecret, seed)
 }
+
+func createFinishedMessage(premasterBytes MasterSecret, serverProtocolBytes []byte) []byte {
+	var random []byte
+	random = append(random, premasterBytes.ClientRandom...)
+	random = append(random, premasterBytes.ServerRandom...)
+
+	// master secretを作成する
+	master := createMasterSecret(premasterBytes.PreMasterSecret, random)
+
+	// サーバから受信したhandshake protocolでハッシュを計算する
+	hasher := sha256.New()
+	hasher.Write(serverProtocolBytes)
+	messages := hasher.Sum(nil)
+
+	seed := []byte(`client finished`)
+	seed = append(seed, messages...)
+
+	result := phash(master, seed)
+
+	var record TLSRecordHeader
+	record = record.NewTLSRecordHeader("Handshake")
+	record.Length = uintTo2byte(40)
+
+	var finish []byte
+	finish = append(finish, toByteArr(record)...)
+	finish = append(finish, result[0:40]...)
+
+	return finish
+}

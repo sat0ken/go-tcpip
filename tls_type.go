@@ -1,6 +1,8 @@
 package main
 
-import "crypto/x509"
+import (
+	"crypto/x509"
+)
 
 const (
 	TypeClientHello       = 0x01
@@ -64,6 +66,7 @@ type ClientHello struct {
 	CipherSuites       []byte
 	CompressionLength  []byte
 	CompressionMethod  []byte
+	Options            []byte
 }
 
 // https://www.ipa.go.jp/security/rfc/RFC5246-07JA.html#0743
@@ -95,8 +98,15 @@ type ClientKeyExchange struct {
 	// Pubkey []byte
 }
 
-type FinishedMessage struct {
-	MasterSecret  []byte
-	FinishedLable []byte
-	Hash          []byte
+type TCPandServerHello struct {
+	ACKFromClient      TCPIP
+	TLSProcotocol      []TLSProtocol
+	TLSProcotocolBytes []byte
+	ClientHelloRandom  []byte
+}
+
+type MasterSecret struct {
+	PreMasterSecret []byte
+	ServerRandom    []byte
+	ClientRandom    []byte
 }

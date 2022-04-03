@@ -37,7 +37,8 @@ func createSequenceNumber() []byte {
 
 func NewTCPIP(tcpip TCPIP) []byte {
 	destIP := iptobyte(tcpip.DestIP)
-	localif, _ := getLocalIpAddr("wlp4s0")
+	//localif, _ := getLocalIpAddr("wlp4s0")
+	localif, _ := getLocalIpAddr("lo")
 
 	var ipheader IPHeader
 	ipheader = NewIPHeader(localif.LocalIpAddr, destIP, "TCP")
@@ -46,18 +47,23 @@ func NewTCPIP(tcpip TCPIP) []byte {
 	// 自分のポートは42279でとりま固定
 	tcpheader = NewTCPHeader(uintTo2byte(42279), uintTo2byte(tcpip.DestPort), tcpip.TcpFlag)
 
+	var tcpOption TCPOptions
+
 	if tcpip.TcpFlag == "ACK" || tcpip.TcpFlag == "PSHACK" || tcpip.TcpFlag == "FINACK" {
 		tcpheader.SequenceNumber = tcpip.SeqNumber
 		tcpheader.AcknowlegeNumber = tcpip.AckNumber
 	} else if tcpip.TcpFlag == "SYN" {
 		// SYNのときは乱数をセット
 		tcpheader.SequenceNumber = createSequenceNumber()
+		tcpOption = NewTCPOptions()
 	}
 
 	// IPヘッダにLengthをセットする
 	// IP=20byte + tcpヘッダの長さ + (tcpオプションの長さ) + dataの長さ
 	if tcpip.TcpFlag == "PSHACK" {
 		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader) + uint16(len(tcpip.Data)))
+	} else if tcpip.TcpFlag == "SYN" {
+		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader) + toByteLen(tcpOption))
 	} else {
 		// ACKのときはTCPヘッダまで
 		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader)) // + toByteLen(tcpOption))
@@ -68,7 +74,12 @@ func NewTCPIP(tcpip TCPIP) []byte {
 	ipheader.HeaderCheckSum = checksum(ipsum)
 
 	// TCPヘッダのLengthをセットする
-	num := toByteLen(tcpheader) //+ toByteLen(tcpOption)
+	var num uint16
+	if tcpip.TcpFlag == "SYN" {
+		num = toByteLen(tcpheader) + toByteLen(tcpOption)
+	} else {
+		num = toByteLen(tcpheader)
+	}
 	tcpheader.HeaderLength = []byte{byte(num << 2)}
 
 	// TCPダミーヘッダを作成する
@@ -93,6 +104,8 @@ func NewTCPIP(tcpip TCPIP) []byte {
 		} else {
 			sum += sumByteArr(tcpip.Data)
 		}
+	} else if tcpip.TcpFlag == "SYN" {
+		sum += sumByteArr(toByteArr(tcpOption))
 	}
 	tcpheader.Checksum = checksum(sum)
 
@@ -102,6 +115,8 @@ func NewTCPIP(tcpip TCPIP) []byte {
 	tcpipPacket = append(tcpipPacket, toByteArr(tcpheader)...)
 	if tcpip.TcpFlag == "PSHACK" {
 		tcpipPacket = append(tcpipPacket, tcpip.Data...)
+	} else if tcpip.TcpFlag == "SYN" {
+		tcpipPacket = append(tcpipPacket, toByteArr(tcpOption)...)
 	}
 
 	return tcpipPacket

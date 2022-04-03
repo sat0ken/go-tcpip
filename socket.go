@@ -53,7 +53,11 @@ func RecvIPSocket(fd int, destIp, destPort []byte) TCPHeader {
 		if bytes.Equal(ip.Protocol, []byte{0x06}) && bytes.Equal(ip.SourceIPAddr, destIp) {
 			// IPヘッダを省いて20byte目からのTCPパケットをパースする
 			synack = parseTCP(recvBuf[20:])
-			break
+			if bytes.Equal(synack.ControlFlags, []byte{SYNACK}) {
+				//fmt.Printf("recv %s\n", printByteArr(recvBuf[20:]))
+				break
+			}
+			//break
 		}
 	}
 	return synack

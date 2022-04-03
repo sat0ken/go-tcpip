@@ -8,11 +8,11 @@ import (
 )
 
 func synack_finack() {
-	localip := "127.0.0.1"
-	var port uint16 = 8080
+	dest := "127.0.0.1"
+	var port uint16 = 8443
 
 	syn := TCPIP{
-		DestIP:   localip,
+		DestIP:   dest,
 		DestPort: port,
 		TcpFlag:  "SYN",
 	}
@@ -26,19 +26,19 @@ func synack_finack() {
 	fmt.Printf("TCP Connection is success!!\n")
 	time.Sleep(10 * time.Millisecond)
 
-	req := NewHttpGetRequest("/", "localhost:8080")
-	pshack := TCPIP{
-		DestIP:    localip,
-		DestPort:  port,
-		TcpFlag:   "PSHACK",
-		SeqNumber: ack.SeqNumber,
-		AckNumber: ack.AckNumber,
-		Data:      req.reqtoByteArr(req),
-	}
-	startTCPConnection(sendfd, pshack)
+	//req := NewHttpGetRequest("/", "localhost:8080")
+	//pshack := TCPIP{
+	//	DestIP:    localip,
+	//	DestPort:  port,
+	//	TcpFlag:   "PSHACK",
+	//	SeqNumber: ack.SeqNumber,
+	//	AckNumber: ack.AckNumber,
+	//	Data:      req.reqtoByteArr(req),
+	//}
+	//startTCPConnection(sendfd, pshack)
 
 	fin := TCPIP{
-		DestIP:    localip,
+		DestIP:    dest,
 		DestPort:  port,
 		TcpFlag:   "FINACK",
 		SeqNumber: ack.SeqNumber,

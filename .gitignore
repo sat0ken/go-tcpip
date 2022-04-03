@@ -15,3 +15,5 @@
 # vendor/
 .idea/
 tcpip
+certs/
+tls-server
