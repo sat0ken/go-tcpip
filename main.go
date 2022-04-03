@@ -14,9 +14,9 @@ import (
 // sudo sh -c 'echo 3 > /proc/sys/net/ipv4/tcp_retries2'
 // sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 
-//func main() {
-//	synack_finack()
-//}
+func main() {
+	synack_finack()
+}
 
 func __main() {
 	premaster := randomByte(48)
@@ -50,7 +50,7 @@ func ___main() {
 	_ = protoBytes
 }
 
-func main() {
+func _() {
 	// github.com
 	//dest := "13.114.40.48"
 	dest := "127.0.0.1"

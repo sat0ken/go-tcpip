@@ -9,7 +9,7 @@ import (
 
 // https://gist.github.com/denji/12b3a568f092ab951456
 func main() {
-	cert, err := tls.LoadX509KeyPair("certs/my-tls.pem", "certs/my-tls-key.pem")
+	cert, err := tls.LoadX509KeyPair("./my-tls.pem", "./my-tls-key.pem")
 	if err != nil {
 		log.Fatal(err)
 	}

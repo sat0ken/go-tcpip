@@ -15,5 +15,5 @@
 # vendor/
 .idea/
 tcpip
-certs/
+certs/*.pem
 tls-server

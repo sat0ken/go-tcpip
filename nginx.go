@@ -9,7 +9,7 @@ import (
 
 func synack_finack() {
 	dest := "127.0.0.1"
-	var port uint16 = 8443
+	var port uint16 = 10443
 
 	syn := TCPIP{
 		DestIP:   dest,
