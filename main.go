@@ -36,8 +36,8 @@ func __main() {
 	clientServerRandomByte = append(clientServerRandomByte, clientRandom...)
 	clientServerRandomByte = append(clientServerRandomByte, serverRandom...)
 
-	result := createMasterSecret(premaster, clientServerRandomByte)
-	result2 := createMasterSecret(premaster, clientServerRandomByte)
+	result := prf(premaster, MasterSecretLable, clientServerRandomByte)
+	result2 := prf(premaster, MasterSecretLable, clientServerRandomByte)
 	fmt.Printf("%x\n", result)
 	fmt.Printf("%x\n", result2)
 
