@@ -262,13 +262,7 @@ func unpackTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 
 func starFromClientHello(sendfd int, sendInfo TCPIP) (TCPandServerHello, error) {
 	clienthelloPacket := NewTCPIP(sendInfo)
-
 	destIp := iptobyte(sendInfo.DestIP)
-
-	//syscall.Bind(sendfd, &syscall.SockaddrInet4{
-	//	Port: 422779,
-	//	Addr: [4]byte{byte(0xc0), byte(0xa8), byte(0x00), byte(0x14)},
-	//})
 
 	// Client Helloを送る
 	addr := setSockAddrInet4(destIp, int(sendInfo.DestPort))
@@ -345,12 +339,12 @@ func starFromClientHello(sendfd int, sendInfo TCPIP) (TCPandServerHello, error) 
 				// ServerHelloを受信したことに対してACKを送る
 				SendIPv4Socket(sendfd, ackPacket, addr)
 				//time.Sleep(100 * time.Millisecond)
-				fmt.Println("Send ACK ServerHello,Certificate,ServerHelloDone to server")
+				//fmt.Println("Recv PSHACK ServerHello,Certificate,ServerHelloDone from %s\n", sendInfo.DestIP)
 
 				for _, v := range tlsProto {
 					switch v.HandshakeProtocol.(type) {
 					case ServerHelloDone:
-						fmt.Println("recv server hello done")
+						fmt.Printf("Recv PSHACK ServerHello,Certificate,ServerHelloDone from %s\n", sendInfo.DestIP)
 						//break
 					}
 				}
@@ -378,8 +372,6 @@ func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) []
 			_, ok := proto.Certificates[0].PublicKey.(*rsa.PublicKey)
 			if !ok {
 				log.Fatalf("cast pubkey err : %v\n", ok)
-			} else {
-				fmt.Println("cast pubkey is success")
 			}
 			pubkey = proto.Certificates[0].PublicKey.(*rsa.PublicKey)
 		}
@@ -402,30 +394,25 @@ func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) []
 	all = append(all, finish...)
 
 	fin := TCPIP{
-		DestIP:    "127.0.0.1",
-		DestPort:  8443,
+		DestIP:    LOCALIP,
+		DestPort:  LOCALPORT,
 		TcpFlag:   "PSHACK",
 		SeqNumber: serverhello.ACKFromClient.SeqNumber,
 		AckNumber: serverhello.ACKFromClient.AckNumber,
 		Data:      all,
 	}
 
-	clienthelloPacket := NewTCPIP(fin)
+	finished := NewTCPIP(fin)
 
-	destIp := iptobyte("127.0.0.1")
+	destIp := iptobyte(fin.DestIP)
 
-	//syscall.Bind(sendfd, &syscall.SockaddrInet4{
-	//	Port: 422779,
-	//	Addr: [4]byte{byte(0xc0), byte(0xa8), byte(0x00), byte(0x14)},
-	//})
-
-	// Client Helloを送る
-	addr := setSockAddrInet4(destIp, int(443))
-	err := SendIPv4Socket(sendfd, clienthelloPacket, addr)
+	// Finished message を送る
+	addr := setSockAddrInet4(destIp, LOCALPORT)
+	err := SendIPv4Socket(sendfd, finished, addr)
 	if err != nil {
 		log.Fatalf("send PSHACK packet err : %v", err)
 	}
-	fmt.Printf("Send Finished message to : %s\n", "127.0.0.1")
+	fmt.Printf("Send Finished message to : %s\n", LOCALIP)
 
 	return all
 }

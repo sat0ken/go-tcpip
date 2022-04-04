@@ -27,6 +27,8 @@ func main() {
 			continue
 		}
 		log.Printf("Client From : %v\n", conn.RemoteAddr())
+		//tlsconn := tls.Server(conn, config)
+		//log.Printf("State is : %v\n", tlsconn.ConnectionState())
 		go handleConnection(conn)
 	}
 }
@@ -40,6 +42,5 @@ func handleConnection(conn net.Conn) {
 			//log.Println(err)
 			return
 		}
-		//fmt.Println(msg)
 	}
 }

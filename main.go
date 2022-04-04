@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"github.com/k0kubun/pp/v3"
 	"log"
 	"syscall"
 	"time"
@@ -14,9 +15,17 @@ import (
 // sudo sh -c 'echo 3 > /proc/sys/net/ipv4/tcp_retries2'
 // sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 
-func main() {
-	synack_finack()
-}
+//func main() {
+//	synack_finack()
+//}
+
+const (
+	LOCALIP = "127.0.0.1"
+	// github.com
+	GITHUBIP   = "13.114.40.48"
+	LOCALPORT  = 10443
+	GITHUBPORT = 443
+)
 
 func __main() {
 	premaster := randomByte(48)
@@ -50,11 +59,10 @@ func ___main() {
 	_ = protoBytes
 }
 
-func _() {
-	// github.com
-	//dest := "13.114.40.48"
-	dest := "127.0.0.1"
-	var port uint16 = 8443
+func main() {
+
+	dest := LOCALIP
+	var port uint16 = LOCALPORT
 
 	syn := TCPIP{
 		DestIP:   dest,
@@ -104,8 +112,14 @@ func _() {
 		// IPヘッダをUnpackする
 		ip := parseIP(recvBuf[0:20])
 		if bytes.Equal(ip.Protocol, []byte{0x06}) && bytes.Equal(ip.SourceIPAddr, iptobyte(dest)) {
-			//recvtcp := parseTCP(recvBuf[20:])
-			fmt.Printf("Recv TCP : %s\n", printByteArr(recvBuf[20:]))
+			recvtcp := parseTCP(recvBuf[20:])
+			if bytes.Equal(recvtcp.ControlFlags, []byte{ACK}) && bytes.Equal(recvtcp.SourcePort, uintTo2byte(LOCALPORT)) {
+				//pp.Println(recvtcp)
+				fmt.Printf("Recv Finished message ACK from %s\n", dest)
+			} else if bytes.Equal(recvtcp.ControlFlags, []byte{PSHACK}) && bytes.Equal(recvtcp.SourcePort, uintTo2byte(LOCALPORT)) {
+				fmt.Printf("Recv Finished message PSHACK from %s\n", dest)
+				pp.Println(recvtcp)
+			}
 		}
 	}
 

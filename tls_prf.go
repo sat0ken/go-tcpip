@@ -39,11 +39,11 @@ func phash(secret, seed []byte) []byte {
 // https://www.ipa.go.jp/security/rfc/RFC5246-08JA.html#081
 // ClientKeyExchangeのときに生成したpremaster secretと
 // ClientHelloで送ったrandom, ServerHelloで受信したrandomをもとに48byteのmaster secretを生成する
-func createMasterSecret(premastersecret, clientServerRandom []byte) []byte {
+func prf(secret, label, clientServerRandom []byte) []byte {
 	var seed []byte
-	seed = append(seed, MasterSecretLable...)
+	seed = append(seed, label...)
 	seed = append(seed, clientServerRandom...)
-	return phash(premastersecret, seed)
+	return phash(secret, seed)
 }
 
 func createFinishedMessage(premasterBytes MasterSecret, serverProtocolBytes []byte) []byte {
@@ -52,7 +52,7 @@ func createFinishedMessage(premasterBytes MasterSecret, serverProtocolBytes []by
 	random = append(random, premasterBytes.ServerRandom...)
 
 	// master secretを作成する
-	master := createMasterSecret(premasterBytes.PreMasterSecret, random)
+	master := prf(premasterBytes.PreMasterSecret, MasterSecretLable, random)
 
 	// サーバから受信したhandshake protocolでハッシュを計算する
 	hasher := sha256.New()

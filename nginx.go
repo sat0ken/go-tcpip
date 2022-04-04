@@ -8,7 +8,7 @@ import (
 )
 
 func synack_finack() {
-	dest := "127.0.0.1"
+	dest := LOCALIP
 	var port uint16 = 10443
 
 	syn := TCPIP{
