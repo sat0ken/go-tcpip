@@ -59,10 +59,7 @@ func createFinishedMessage(premasterBytes MasterSecret, serverProtocolBytes []by
 	hasher.Write(serverProtocolBytes)
 	messages := hasher.Sum(nil)
 
-	seed := []byte(`client finished`)
-	seed = append(seed, messages...)
-
-	result := phash(master, seed)
+	result := prf(master, []byte(`client finished`), messages)
 
 	var record TLSRecordHeader
 	record = record.NewTLSRecordHeader("Handshake")
