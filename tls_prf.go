@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
@@ -55,8 +57,16 @@ func createFinishedMessage(premasterBytes MasterSecret, serverProtocolBytes []by
 
 	// master secretを作成する
 	master := prf(premasterBytes.PreMasterSecret, MasterSecretLable, random, 48)
-
 	fmt.Printf("master secret is %x\n", master)
+
+	keyblockbyte := prf(master, KeyLable, random, 40)
+	keyblock := KeyBlock{
+		ClientWriteKey: keyblockbyte[0:16],
+		ServerWriteKey: keyblockbyte[16:32],
+		ClientWriteIV:  keyblockbyte[32:36],
+		ServerWriteIV:  keyblockbyte[36:40],
+	}
+	fmt.Printf("keyblock is %+v\n", keyblock)
 
 	// これまでの全てのhandshake protocolでハッシュを計算する
 	hasher := sha256.New()
@@ -74,4 +84,15 @@ func createFinishedMessage(premasterBytes MasterSecret, serverProtocolBytes []by
 	finish = append(finish, result...)
 
 	return finish
+}
+
+func doEncryption(key, plaintext, prefixnonce []byte) []byte {
+	add := noRandomByte(8)
+	add = append(add, []byte{0x14, 0x00, 0x00, 0x0c}...)
+
+	block, _ := aes.NewCipher(key)
+	nonce := append(prefixnonce, noRandomByte(8)...)
+	aesgcm, _ := cipher.NewGCMWithTagSize(block, 16)
+
+	return aesgcm.Seal(nil, nonce, plaintext, add)
 }

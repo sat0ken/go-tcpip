@@ -19,6 +19,7 @@ var TLS1_2 = []byte{0x03, 0x03}
 
 // 固定のラベル
 var MasterSecretLable = []byte(`master secret`)
+var KeyLable = []byte(`key expansion`)
 
 // https://www.ipa.go.jp/security/rfc/RFC5246-AAJA.html
 type TLSRecordHeader struct {
@@ -109,4 +110,11 @@ type MasterSecret struct {
 	PreMasterSecret []byte
 	ServerRandom    []byte
 	ClientRandom    []byte
+}
+
+type KeyBlock struct {
+	ClientWriteKey []byte
+	ServerWriteKey []byte
+	ClientWriteIV  []byte
+	ServerWriteIV  []byte
 }
