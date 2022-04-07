@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
-	"encoding/binary"
 	"fmt"
 	"github.com/k0kubun/pp/v3"
 	"log"
@@ -27,36 +25,18 @@ const (
 	GITHUBPORT = 443
 )
 
-func __main() {
-	premaster := randomByte(48)
-	clientRandom := randomByte(32)
-	serverRandom := randomByte(32)
+func _() {
+	premaster := []byte{0x03, 0x03}
+	premaster = append(premaster, noRandomByte(46)...)
+	clientRandom := noRandomByte(32)
+	serverRandom := noRandomByte(32)
 
 	var clientServerRandomByte []byte
 	clientServerRandomByte = append(clientServerRandomByte, clientRandom...)
 	clientServerRandomByte = append(clientServerRandomByte, serverRandom...)
 
-	result := prf(premaster, MasterSecretLable, clientServerRandomByte)
-	result2 := prf(premaster, MasterSecretLable, clientServerRandomByte)
+	result := prf(premaster, MasterSecretLable, clientServerRandomByte, 48)
 	fmt.Printf("%x\n", result)
-	fmt.Printf("%x\n", result2)
-
-}
-
-func ___main() {
-	serverTLS, protoBytes := unpackTLSPacket(rsaByte)
-	for _, v := range serverTLS {
-		switch proto := v.HandshakeProtocol.(type) {
-		case ServerHello:
-			fmt.Printf("Cipher Suite is : %s\n", tls.CipherSuiteName(binary.BigEndian.Uint16(proto.CipherSuites)))
-		case ServerCertifiate:
-			fmt.Printf("Pubkey type is %T\n", proto.Certificates[0].PublicKey)
-			fmt.Println(proto.Certificates[0].PublicKey)
-		case ServerHelloDone:
-			fmt.Println("ServerHelloDone")
-		}
-	}
-	_ = protoBytes
 }
 
 func main() {
@@ -92,13 +72,17 @@ func main() {
 		Data:      hello.NewRSAClientHello(),
 	}
 
+	var handshake_messages []byte
+	handshake_messages = append(handshake_messages, clienthello.Data[5:]...)
+
 	// ClientHelloを送りServerHelloを受信する
 	serverhello, err := starFromClientHello(sendfd, clienthello)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	//pp.Println(serverhello)
+	handshake_messages = append(handshake_messages, serverhello.TLSProcotocolBytes...)
+	copy(serverhello.TLSProcotocolBytes, handshake_messages)
 
 	serverhello.ClientHelloRandom = hello.Random
 	sendClientKeyExchangeToFinish(sendfd, serverhello)

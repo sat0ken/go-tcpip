@@ -41,14 +41,13 @@ func (*ClientHello) NewRSAClientHello() []byte {
 		HandshakeType: []byte{TypeClientHello},
 		Length:        []byte{0x00, 0x00, 0x00},
 		Version:       TLS1_2,
-		//Random:        randomByte(32),
-		Random:    noRandomByte(32),
-		SessionID: []byte{0x00},
+		Random:        noRandomByte(32),
+		SessionID:     []byte{0x00},
 		//CipherSuitesLength: uintTo2byte(uint16(len(cipher))),
 		//CipherSuites:       cipher,
 		CipherSuitesLength: []byte{0x00, 0x02},
 		// TLS_RSA_WITH_AES_128_GCM_SHA256
-		CipherSuites:      []byte{0x00, 0x9c}, //, 0x00, 0xff},
+		CipherSuites:      []byte{0x00, 0x9c},
 		CompressionLength: []byte{0x01},
 		CompressionMethod: []byte{0x00},
 		//Options: []byte{
@@ -381,6 +380,8 @@ func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) []
 
 	var clientKeyExchange ClientKeyExchange
 	clientKeyExchangeBytes, premasterBytes := clientKeyExchange.NewClientKeyExchange(pubkey)
+	serverhello.TLSProcotocolBytes = append(serverhello.TLSProcotocolBytes, clientKeyExchangeBytes[5:]...)
+
 	changeCipher := NewChangeCipherSpec()
 
 	masterBytes := MasterSecret{
