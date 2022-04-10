@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/binary"
 	"io"
 	"log"
 	"math/rand"
@@ -79,5 +80,11 @@ func noRandomByte(length int) []byte {
 	for i := 0; i < length; i++ {
 		b[i] = 0x00
 	}
+	return b
+}
+
+func getNonce(i uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, i)
 	return b
 }

@@ -16,13 +16,13 @@ func (*TLSRecordHeader) NewTLSRecordHeader(ctype string) TLSRecordHeader {
 	var ctypeByte byte
 	switch ctype {
 	case "Handshake":
-		ctypeByte = byte(TypeHandShake)
+		ctypeByte = byte(ContentTypeHandShake)
 	case "AppDada":
 		ctypeByte = byte(23)
 	case "Alert":
 		ctypeByte = byte(21)
 	case "ChangeCipherSpec":
-		ctypeByte = byte(TypeChangeCipherSpec)
+		ctypeByte = byte(HandshakeTypeChangeCipherSpec)
 	}
 	return TLSRecordHeader{
 		ContentType: []byte{ctypeByte},
@@ -38,7 +38,7 @@ func (*ClientHello) NewRSAClientHello() []byte {
 
 	//cipher := getChipersList()
 	handshake := ClientHello{
-		HandshakeType: []byte{TypeClientHello},
+		HandshakeType: []byte{HandshakeTypeClientHello},
 		Length:        []byte{0x00, 0x00, 0x00},
 		Version:       TLS1_2,
 		Random:        noRandomByte(32),
@@ -90,7 +90,7 @@ func (*ClientKeyExchange) NewClientKeyExchange(pubkey *rsa.PublicKey) (clientKey
 	}
 
 	clientKey := ClientKeyExchange{
-		HandshakeType:                  []byte{TypeClientKeyExchange},
+		HandshakeType:                  []byte{HandshakeTypeClientKeyExchange},
 		Length:                         []byte{0x00, 0x00, 0x00},
 		EncryptedPreMasterSecretLength: uintTo2byte(uint16(len(secret))),
 		EncryptedPreMasterSecret:       secret,
@@ -196,7 +196,7 @@ func unpackTLSHandshake(packet []byte) interface{} {
 	var i interface{}
 
 	switch packet[0] {
-	case TypeServerHello:
+	case HandshakeTypeServerHello:
 		i = ServerHello{
 			HandshakeType:     packet[0:1],
 			Length:            packet[1:4],
@@ -208,22 +208,22 @@ func unpackTLSHandshake(packet []byte) interface{} {
 		}
 		fmt.Printf("ServerHello : %+v\n", i)
 		//fmt.Printf("Cipher Suite is : %s\n", tls.CipherSuiteName(binary.BigEndian.Uint16(packet[39:41])))
-	case TypeCertificate:
-		i = ServerCertifiate{
+	case HandshakeTypeServerCertificate:
+		i = ServerCertificate{
 			HandshakeType:      packet[0:1],
 			Length:             packet[1:4],
 			CertificatesLength: packet[4:7],
 			Certificates:       readCertificates(packet[7:]),
 		}
 		fmt.Printf("Certificate : %+v\n", i)
-	case TypeServerKeyExchange:
+	case HandshakeTypeServerKeyExchange:
 		i = ServerKeyExchange{
 			HandshakeType:               packet[0:1],
 			Length:                      packet[1:4],
 			ECDiffieHellmanServerParams: unpackECDiffieHellmanParam(packet[4:]),
 		}
 		fmt.Printf("ServerKeyExchange : %+v\n", i)
-	case TypeServerHelloDone:
+	case HandshakeTypeServerHelloDone:
 		i = ServerHelloDone{
 			HandshakeType: packet[0:1],
 			Length:        packet[1:4],
@@ -369,7 +369,7 @@ func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) []
 		switch proto := v.HandshakeProtocol.(type) {
 		case ServerHello:
 			serverRandom = proto.Random
-		case ServerCertifiate:
+		case ServerCertificate:
 			_, ok := proto.Certificates[0].PublicKey.(*rsa.PublicKey)
 			if !ok {
 				log.Fatalf("cast pubkey err : %v\n", ok)
@@ -389,12 +389,27 @@ func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) []
 		ServerRandom:    serverRandom,
 		ClientRandom:    serverhello.ClientHelloRandom,
 	}
-	finish := createFinishedMessage(masterBytes, serverhello.TLSProcotocolBytes)
+
+	verifyData, keyblock := createVerifyData(masterBytes, serverhello.TLSProcotocolBytes)
+	// finished messageを作成する、先頭にヘッダを入れてからverify_dataを入れる
+	// 作成された16byteがplaintextとなり暗号化する
+	finMessage := []byte{HandshakeTypeFinished}
+	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
+	finMessage = append(finMessage, verifyData...)
+	fmt.Printf("finMessage : %x\n", finMessage)
+
+	rheader := TLSRecordHeader{
+		ContentType:     []byte{ContentTypeHandShake},
+		ProtocolVersion: TLS1_2,
+		Length:          uintTo2byte(uint16(len(finMessage))),
+	}
+
+	encryptFin := encryptMessage(rheader, keyblock.ClientWriteIV, finMessage, keyblock.ClientWriteKey)
 
 	var all []byte
 	all = append(all, clientKeyExchangeBytes...)
 	all = append(all, changeCipher...)
-	all = append(all, finish...)
+	all = append(all, encryptFin...)
 
 	fin := TCPIP{
 		DestIP:    LOCALIP,

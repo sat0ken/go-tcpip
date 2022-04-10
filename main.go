@@ -25,18 +25,9 @@ const (
 	GITHUBPORT = 443
 )
 
-func _() {
-	premaster := []byte{0x03, 0x03}
-	premaster = append(premaster, noRandomByte(46)...)
-	clientRandom := noRandomByte(32)
-	serverRandom := noRandomByte(32)
-
-	var clientServerRandomByte []byte
-	clientServerRandomByte = append(clientServerRandomByte, clientRandom...)
-	clientServerRandomByte = append(clientServerRandomByte, serverRandom...)
-
-	result := prf(premaster, MasterSecretLable, clientServerRandomByte, 48)
-	fmt.Printf("%x\n", result)
+func _main() {
+	createFinishTest()
+	//encryptTest()
 }
 
 func main() {

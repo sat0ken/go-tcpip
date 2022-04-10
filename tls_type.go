@@ -5,14 +5,15 @@ import (
 )
 
 const (
-	TypeClientHello       = 0x01
-	TypeServerHello       = 0x02
-	TypeClientKeyExchange = 0x10 //=16
-	TypeCertificate       = 0x0b //=11
-	TypeServerKeyExchange = 0x0c
-	TypeServerHelloDone   = 0x0e
-	TypeHandShake         = 0x16
-	TypeChangeCipherSpec  = 0x14 //=20
+	ContentTypeHandShake           = 0x16
+	HandshakeTypeClientHello       = 0x01
+	HandshakeTypeServerHello       = 0x02
+	HandshakeTypeClientKeyExchange = 0x10 //=16
+	HandshakeTypeServerCertificate = 0x0b //=11
+	HandshakeTypeServerKeyExchange = 0x0c
+	HandshakeTypeServerHelloDone   = 0x0e
+	HandshakeTypeChangeCipherSpec  = 0x14 //=20
+	HandshakeTypeFinished          = 0x14
 )
 
 var TLS1_2 = []byte{0x03, 0x03}
@@ -38,7 +39,7 @@ type ServerHello struct {
 	CompressionMethod []byte
 }
 
-type ServerCertifiate struct {
+type ServerCertificate struct {
 	HandshakeType      []byte
 	Length             []byte
 	CertificatesLength []byte

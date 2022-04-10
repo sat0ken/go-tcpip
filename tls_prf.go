@@ -49,15 +49,15 @@ func prf(secret, label, clientServerRandom []byte, prfLength int) []byte {
 	return phash(secret, seed, prfLength)
 }
 
-func createFinishedMessage(premasterBytes MasterSecret, serverProtocolBytes []byte) []byte {
+func createVerifyData(premasterBytes MasterSecret, serverProtocolBytes []byte) ([]byte, KeyBlock) {
 	var random []byte
 	//random = append(random, premasterBytes.ClientRandom...)
+	// client randomeはいったん All zero
 	random = append(random, noRandomByte(32)...)
 	random = append(random, premasterBytes.ServerRandom...)
 
 	// master secretを作成する
 	master := prf(premasterBytes.PreMasterSecret, MasterSecretLable, random, 48)
-	fmt.Printf("master secret is %x\n", master)
 
 	keyblockbyte := prf(master, KeyLable, random, 40)
 	keyblock := KeyBlock{
@@ -66,7 +66,6 @@ func createFinishedMessage(premasterBytes MasterSecret, serverProtocolBytes []by
 		ClientWriteIV:  keyblockbyte[32:36],
 		ServerWriteIV:  keyblockbyte[36:40],
 	}
-	fmt.Printf("keyblock is %+v\n", keyblock)
 
 	// これまでの全てのhandshake protocolでハッシュを計算する
 	hasher := sha256.New()
@@ -74,25 +73,72 @@ func createFinishedMessage(premasterBytes MasterSecret, serverProtocolBytes []by
 	messages := hasher.Sum(nil)
 
 	result := prf(master, []byte(`client finished`), messages, 12)
+	fmt.Printf("verify_data : %x\n", result)
 
-	var record TLSRecordHeader
-	record = record.NewTLSRecordHeader("Handshake")
-	record.Length = uintTo2byte(40)
-
-	var finish []byte
-	finish = append(finish, toByteArr(record)...)
-	finish = append(finish, result...)
-
-	return finish
+	return result, keyblock
 }
 
-func doEncryption(key, plaintext, prefixnonce []byte) []byte {
-	add := noRandomByte(8)
-	add = append(add, []byte{0x14, 0x00, 0x00, 0x0c}...)
+func createFinishTest() {
 
-	block, _ := aes.NewCipher(key)
-	nonce := append(prefixnonce, noRandomByte(8)...)
-	aesgcm, _ := cipher.NewGCMWithTagSize(block, 16)
+	var handshake_message []byte
+	handshake_message = append(handshake_message, clienthello_byte...)
+	handshake_message = append(handshake_message, serverhello_byte...)
+	handshake_message = append(handshake_message, server_certificate_byte...)
+	handshake_message = append(handshake_message, serverhellodone_byte...)
+	handshake_message = append(handshake_message, clientkeyexchange_byte...)
 
-	return aesgcm.Seal(nil, nonce, plaintext, add)
+	var premasterByte []byte
+	premasterByte = append(premasterByte, TLS1_2...)
+	premasterByte = append(premasterByte, noRandomByte(46)...)
+
+	master := MasterSecret{
+		PreMasterSecret: premasterByte,
+		ServerRandom:    noRandomByte(32),
+		ClientRandom:    noRandomByte(32),
+	}
+
+	// 12byteのverify_dataを作成
+	verifyData, keyblock := createVerifyData(master, handshake_message)
+	// finished messageを作成する、先頭にヘッダを入れてからverify_dataを入れる
+	// 作成された16byteがplaintextとなり暗号化する
+	finMessage := []byte{HandshakeTypeFinished}
+	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
+	finMessage = append(finMessage, verifyData...)
+	fmt.Printf("finMessage : %x\n", finMessage)
+
+	rheader := TLSRecordHeader{
+		ContentType:     []byte{ContentTypeHandShake},
+		ProtocolVersion: TLS1_2,
+		Length:          uintTo2byte(uint16(len(finMessage))),
+	}
+
+	encryptMessage(rheader, keyblock.ClientWriteIV, finMessage, keyblock.ClientWriteKey)
+}
+
+func encryptMessage(header TLSRecordHeader, prenonce, plaintext, clientkey []byte) []byte {
+	//record, _ := hex.DecodeString("16030300100000000000000000")
+	record_seq := toByteArr(header)
+	record_seq = append(record_seq, getNonce(0)...)
+
+	//nonce, _ := hex.DecodeString("6f91b6850000000000000000")
+	nonce := prenonce
+	nonce = append(nonce, getNonce(0)...)
+
+	//plaintext2, _ := hex.DecodeString("1400000cfce82f0b05fe58f0279716c3")
+	//add, _ := hex.DecodeString("00000000000000001603030010")
+	add := getNonce(0)
+	add = append(add, toByteArr(header)...)
+
+	//key, _ := hex.DecodeString("5fa182b333543f7cf6dcf0eceebe9393")
+	block, _ := aes.NewCipher(clientkey)
+	aesgcm, _ := cipher.NewGCM(block)
+
+	encryptedMessage := aesgcm.Seal(record_seq, nonce, plaintext, add)
+	updatelength := uintTo2byte(uint16(len(encryptedMessage) - 5))
+	encryptedMessage[3] = updatelength[0]
+	encryptedMessage[4] = updatelength[1]
+
+	fmt.Printf("encrypted data is : %x\n", encryptedMessage)
+
+	return encryptedMessage
 }

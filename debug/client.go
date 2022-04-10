@@ -1,7 +1,7 @@
 package main
 
 import (
-	"crypto/tls"
+	"crypto/hacktls"
 	"log"
 	"os"
 )
