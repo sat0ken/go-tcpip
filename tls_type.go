@@ -63,12 +63,13 @@ type ClientHello struct {
 	Length             []byte
 	Version            []byte
 	Random             []byte
+	SessionIDLength    []byte
 	SessionID          []byte
 	CipherSuitesLength []byte
 	CipherSuites       []byte
 	CompressionLength  []byte
 	CompressionMethod  []byte
-	Options            []byte
+	Extensions         []byte
 }
 
 // https://www.ipa.go.jp/security/rfc/RFC5246-07JA.html#0743

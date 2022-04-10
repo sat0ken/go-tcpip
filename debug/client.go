@@ -20,6 +20,7 @@ func main() {
 	w := os.Stdout
 	config := &tls.Config{
 		//Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
 		MaxVersion:   tls.VersionTLS12,
 		Rand:         zeroSource2{},
 		KeyLogWriter: w,

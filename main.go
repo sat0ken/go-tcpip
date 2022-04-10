@@ -13,10 +13,6 @@ import (
 // sudo sh -c 'echo 3 > /proc/sys/net/ipv4/tcp_retries2'
 // sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 
-//func main() {
-//	synack_finack()
-//}
-
 const (
 	LOCALIP = "127.0.0.1"
 	// github.com
@@ -25,12 +21,12 @@ const (
 	GITHUBPORT = 443
 )
 
-func _main() {
-	createFinishTest()
-	//encryptTest()
+func main() {
+	//createFinishTest()
+	decryptPremaster()
 }
 
-func main() {
+func _main() {
 
 	dest := LOCALIP
 	var port uint16 = LOCALPORT
