@@ -96,3 +96,12 @@ func SocketRecvfromEth(fd int, destIp, destPort []byte) TCPHeader {
 	}
 	return synack
 }
+
+func NewSockStreemSocket() int {
+	sock, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	if err != nil {
+		log.Fatalf("create socket err : %v\n", err)
+	}
+	//syscall.SetsockoptInt(sock, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1)
+	return sock
+}

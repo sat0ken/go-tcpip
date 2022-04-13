@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"fmt"
 	"github.com/k0kubun/pp/v3"
 	"log"
@@ -21,12 +22,105 @@ const (
 	GITHUBPORT = 443
 )
 
+//func main() {
+//	//decryptPremaster()
+//	createFinishTest()
+//}
+
 func main() {
-	//createFinishTest()
-	decryptPremaster()
+	sock := NewSockStreemSocket()
+	addr := setSockAddrInet4(iptobyte(LOCALIP), LOCALPORT)
+	err := syscall.Connect(sock, &addr)
+	if err != nil {
+		log.Fatalf("connect err : %v\n", err)
+	}
+	fmt.Println("connect success !!")
+	var hello ClientHello
+	hellobyte := hello.NewRSAClientHello()
+	syscall.Write(sock, hellobyte)
+
+	var handshake_messages []byte
+	handshake_messages = append(handshake_messages, hellobyte[5:]...)
+
+	var tlsproto []TLSProtocol
+	var tlsbyte []byte
+
+	for {
+		recvBuf := make([]byte, 1500)
+		_, _, err := syscall.Recvfrom(sock, recvBuf, 0)
+		if err != nil {
+			log.Fatalf("read err : %v", err)
+		}
+		tlsproto, tlsbyte = unpackTLSPacket(recvBuf)
+		break
+	}
+	handshake_messages = append(handshake_messages, tlsbyte...)
+
+	var serverRandom []byte
+	var pubkey *rsa.PublicKey
+
+	for _, v := range tlsproto {
+		switch proto := v.HandshakeProtocol.(type) {
+		case ServerHello:
+			serverRandom = proto.Random
+		case ServerCertificate:
+			_, ok := proto.Certificates[0].PublicKey.(*rsa.PublicKey)
+			if !ok {
+				log.Fatalf("cast pubkey err : %v\n", ok)
+			}
+			pubkey = proto.Certificates[0].PublicKey.(*rsa.PublicKey)
+		}
+	}
+
+	var clientKeyExchange ClientKeyExchange
+	clientKeyExchangeBytes, premasterBytes := clientKeyExchange.NewClientKeyExchange(pubkey)
+	handshake_messages = append(handshake_messages, clientKeyExchangeBytes[5:]...)
+
+	changeCipher := NewChangeCipherSpec()
+
+	masterBytes := MasterSecret{
+		PreMasterSecret: premasterBytes,
+		ServerRandom:    serverRandom,
+		ClientRandom:    noRandomByte(32),
+	}
+
+	fmt.Printf("handshake_message : %x\n", handshake_messages)
+
+	verifyData, keyblock := createVerifyData(masterBytes, handshake_messages)
+	finMessage := []byte{HandshakeTypeFinished}
+	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
+	finMessage = append(finMessage, verifyData...)
+	fmt.Printf("finMessage : %x\n", finMessage)
+
+	rheader := TLSRecordHeader{
+		ContentType:     []byte{ContentTypeHandShake},
+		ProtocolVersion: TLS1_2,
+		Length:          uintTo2byte(uint16(len(finMessage))),
+	}
+
+	encryptFin := encryptMessage(rheader, keyblock.ClientWriteIV, finMessage, keyblock.ClientWriteKey)
+
+	var all []byte
+	all = append(all, clientKeyExchangeBytes...)
+	all = append(all, changeCipher...)
+	all = append(all, encryptFin...)
+
+	syscall.Write(sock, all)
+
+	for {
+		recvBuf := make([]byte, 1500)
+		_, _, err := syscall.Recvfrom(sock, recvBuf, 0)
+		if err != nil {
+			log.Fatalf("read err : %v", err)
+		}
+		fmt.Printf("recv buf : %x\n", recvBuf)
+		break
+	}
+
+	syscall.Close(sock)
 }
 
-func _main() {
+func _() {
 
 	dest := LOCALIP
 	var port uint16 = LOCALPORT
@@ -63,16 +157,18 @@ func _main() {
 	handshake_messages = append(handshake_messages, clienthello.Data[5:]...)
 
 	// ClientHelloを送りServerHelloを受信する
-	serverhello, err := starFromClientHello(sendfd, clienthello)
+	err = starFromClientHello(sendfd, clienthello)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	handshake_messages = append(handshake_messages, serverhello.TLSProcotocolBytes...)
-	copy(serverhello.TLSProcotocolBytes, handshake_messages)
-
-	serverhello.ClientHelloRandom = hello.Random
-	sendClientKeyExchangeToFinish(sendfd, serverhello)
+	//
+	//handshake_messages = append(handshake_messages, serverhello.TLSProcotocolBytes...)
+	//copy(serverhello.TLSProcotocolBytes, handshake_messages)
+	//
+	//time.Sleep(time.Millisecond * 10)
+	//
+	//serverhello.ClientHelloRandom = hello.Random
+	//sendClientKeyExchangeToFinish(sendfd, serverhello)
 
 	for {
 		recvBuf := make([]byte, 65535)

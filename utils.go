@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/binary"
+	"encoding/hex"
 	"io"
 	"log"
 	"math/rand"
@@ -86,5 +87,10 @@ func noRandomByte(length int) []byte {
 func getNonce(i uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, i)
+	return b
+}
+
+func strtoByte(str string) []byte {
+	b, _ := hex.DecodeString(str)
 	return b
 }

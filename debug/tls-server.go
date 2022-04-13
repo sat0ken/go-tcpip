@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"crypto/tls"
+	"crypto/hacktls"
 	"log"
 	"net"
 	"os"

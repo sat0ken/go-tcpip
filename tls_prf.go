@@ -79,6 +79,7 @@ func createVerifyData(premasterBytes MasterSecret, serverProtocolBytes []byte) (
 
 	result := prf(master, []byte(`client finished`), messages, 12)
 	fmt.Printf("verify_data : %x\n", result)
+	fmt.Printf("verify_data server : %x\n", prf(master, []byte(`server finished`), messages, 12))
 
 	return result, keyblock
 }
@@ -86,11 +87,12 @@ func createVerifyData(premasterBytes MasterSecret, serverProtocolBytes []byte) (
 func createFinishTest() {
 
 	var handshake_message []byte
-	handshake_message = append(handshake_message, clienthello_byte...)
-	handshake_message = append(handshake_message, serverhello_byte...)
-	handshake_message = append(handshake_message, server_certificate_byte...)
-	handshake_message = append(handshake_message, serverhellodone_byte...)
-	handshake_message = append(handshake_message, clientkeyexchange_byte...)
+	handshake_message = append(handshake_message, strtoByte(clientHellostr)...)
+	handshake_message = append(handshake_message, strtoByte(serverHellostr)...)
+	handshake_message = append(handshake_message, strtoByte(serverCertificatestr)...)
+	handshake_message = append(handshake_message, strtoByte(serveHelloDonestr)...)
+	handshake_message = append(handshake_message, strtoByte(clientKeyExchagestr)...)
+	handshake_message = append(handshake_message, strtoByte(clientFinishstr)...)
 
 	var premasterByte []byte
 	premasterByte = append(premasterByte, TLS1_2...)
@@ -104,7 +106,8 @@ func createFinishTest() {
 
 	// 12byteのverify_dataを作成
 	verifyData, keyblock := createVerifyData(master, handshake_message)
-	// finished messageを作成する、先頭にヘッダを入れてからverify_dataを入れる
+
+	// finished messageを作成する、先頭にレコードヘッダを入れてからverify_dataを入れる
 	// 作成された16byteがplaintextとなり暗号化する
 	finMessage := []byte{HandshakeTypeFinished}
 	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
@@ -155,7 +158,7 @@ func decryptPremaster() {
 	}
 
 	//premaster, _ := hex.DecodeString("7d4e98e480ec763ba78b36413c0c13686297aad706653f5d2582a96a5006b3fe0e1d00f9f833f39a9d5459567587fcc7f00aad553f0f2ff5aca7efd18d2ef484cac000bdf8d77b80935b1c7053cc832c6d4dcbb51c597d19c0213abb97c06cec27bcd67512f280e1211f80be4056590a11679baeae64f71af8230c34ce7562b16fcdad1d4abfc9be0ef4d10e02b9ebcfda862b99d23f407ca62d2055d9df107434a0046c4915afca067c1a8be40a8ee6ab492a78f11e805b8facaf1ad10ddaf4734b0b5453252e5c231f946682b333d3a0e31128aa6cfc38c97fb6b0eb0fed04c62b32c4f392e8e5a7faa47c0e3c151f5014fea0b34a18fc08095b6afab1519a")
-	premaster, _ := hex.DecodeString("8c444026ba3c7d7c3b13c6bbc272a06566b5ab61b7fd3a1d98ffe6f034838c441c6a763112be50be451042e1bdf508fecfc4d30f7b36f0a2a357221ccbb7ebad06b10ebb9b7637f0466707a1323bcfe14a3d2f3249b8ac634db17e46254a1f0fda304ed6317b008ba2c0073c4fa904ace5bbf70b9d8298b5a59b21b0d83f101e7d967668242ddf039a2bfcf0a1129d196aea517d9566fd4d7b57ceb494b8b2b62a04c0b4b56615826c7d6046c85644b5d2c87cc4dff454ce12b8f8973457ee40ff3ec33474f61d8a6116867d13ddd37b70704c35c415d69555cb4aaf1ec4142837d7d9db1c3e6494eee282500ebe907bae32b4bd81eda7cf5cb7bd35d94a2270")
+	premaster, _ := hex.DecodeString("64df1148bdeaaff4fb1a241e1c3fad5e72de3052872517cebe5580e149f4a7dae6f376702aa390e34a7f6ebe4abdf4f6444bb398d1a77c9b9be79c229e0dcdb8a15b3b4f908c611c9dd1b283acedc6e66bb0b301416965866200c9d84c28f4d5d48e159f6a5e86b9acec5c9f324813fc8bf7f5c13e6c74661ae88cbc5b9689bf1002d1764cce9f60393738202b62134e04f543046a47b84ac7d420ca3653af2fc5cafde09daf9d4c84dbf0fb38421603c909750f359ce82d83e6be6776fbc118e69ec083c0a6b208538317e1eebb1e5582b3dedd75a85f71e8f1ab3118fefe92152f66cb092a5af07b5e580f86067713a644be03d87fa96230e0e9b502f7987c")
 
 	secret, err := rsa.DecryptPKCS1v15(rand.Reader, certfile.PrivateKey.(*rsa.PrivateKey), premaster)
 	if err != nil {
