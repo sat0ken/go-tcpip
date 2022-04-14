@@ -12,29 +12,27 @@ import (
 	"time"
 )
 
-func (*TLSRecordHeader) NewTLSRecordHeader(ctype string) TLSRecordHeader {
-	var ctypeByte byte
+func NewTLSRecordHeader(ctype string, length uint16) []byte {
+	var b []byte
 	switch ctype {
 	case "Handshake":
-		ctypeByte = byte(ContentTypeHandShake)
+		b = append(b, ContentTypeHandShake)
 	case "AppDada":
-		ctypeByte = byte(23)
+		b = append(b, ContentTypeApplicationData)
 	case "Alert":
-		ctypeByte = byte(21)
+		b = append(b, ContentTypeAlert)
 	case "ChangeCipherSpec":
-		ctypeByte = byte(HandshakeTypeChangeCipherSpec)
+		b = append(b, HandshakeTypeChangeCipherSpec)
 	}
-	return TLSRecordHeader{
-		ContentType: []byte{ctypeByte},
-		// TLS 1.2
-		ProtocolVersion: TLS1_2,
-		Length:          []byte{0x00, 0x00},
-	}
+
+	b = append(b, TLS1_2...)
+	b = append(b, uintTo2byte(length)...)
+	return b
 }
 
 func (*ClientHello) NewRSAClientHello() []byte {
-	var record TLSRecordHeader
-	record = record.NewTLSRecordHeader("Handshake")
+	//var record TLSRecordHeader
+	//record = record.NewTLSRecordHeader("Handshake")
 
 	handshake := ClientHello{
 		HandshakeType: []byte{HandshakeTypeClientHello},
@@ -52,11 +50,11 @@ func (*ClientHello) NewRSAClientHello() []byte {
 		Extensions:        setTLSExtenstions(),
 	}
 
-	record.Length = uintTo2byte(toByteLen(handshake))
+	// Typeの1byteとLengthの3byteを合計から引く
 	handshake.Length = uintTo3byte(uint32(toByteLen(handshake) - 4))
 
 	var hello []byte
-	hello = append(hello, toByteArr(record)...)
+	hello = append(hello, NewTLSRecordHeader("Handshake", toByteLen(handshake))...)
 	hello = append(hello, toByteArr(handshake)...)
 
 	return hello
@@ -96,8 +94,6 @@ func setTLSExtenstions() []byte {
 }
 
 func (*ClientKeyExchange) NewClientKeyExchange(pubkey *rsa.PublicKey) (clientKeyExchange, premasterByte []byte) {
-	var record TLSRecordHeader
-	record = record.NewTLSRecordHeader("Handshake")
 
 	// 46byteのランダムなpremaster secretを生成する
 	// https://www.ipa.go.jp/security/rfc/RFC5246-07JA.html#07471
@@ -119,28 +115,19 @@ func (*ClientKeyExchange) NewClientKeyExchange(pubkey *rsa.PublicKey) (clientKey
 		EncryptedPreMasterSecret:       secret,
 	}
 
-	// それぞれのLengthをセット
-	record.Length = uintTo2byte(toByteLen(clientKey))
+	// Lengthをセット
 	clientKey.Length = uintTo3byte(uint32(toByteLen(clientKey) - 4))
 
 	// byte配列にする
-	clientKeyExchange = append(clientKeyExchange, toByteArr(record)...)
+	clientKeyExchange = append(clientKeyExchange, NewTLSRecordHeader("Handshake", toByteLen(clientKey))...)
 	clientKeyExchange = append(clientKeyExchange, toByteArr(clientKey)...)
 
 	return clientKeyExchange, premasterByte
 }
 
 func NewChangeCipherSpec() []byte {
-	var record TLSRecordHeader
-	record = record.NewTLSRecordHeader("ChangeCipherSpec")
-	record.Length = []byte{0x00, 0x01}
-
-	var changeCipher []byte
-	changeCipher = append(changeCipher, toByteArr(record)...)
-	// Change Cipher Spec Message
-	changeCipher = append(changeCipher, byte(0x01))
-
-	return changeCipher
+	// Type: handshake, TLS1.2のVersion, length: 2byte, message: 1byte
+	return []byte{0x14, 0x03, 0x03, 0x00, 0x01, 0x01}
 }
 
 func readCertificates(packet []byte) []*x509.Certificate {
@@ -313,6 +300,8 @@ func starFromClientHello(sendfd int, sendInfo TCPIP) error {
 	var tlsBytes []byte
 	var tcpBytes []byte
 
+	_ = tlsBytes
+
 	var handshake_messages []byte
 	handshake_messages = append(handshake_messages, sendInfo.Data[5:]...)
 
@@ -369,19 +358,19 @@ func starFromClientHello(sendfd int, sendInfo TCPIP) error {
 		}
 	}
 
-	handshake_messages = append(handshake_messages, tlsBytes...)
-	_, err := sendClientKeyExchangeToFinish(sendfd, TCPandServerHello{
-		ACKFromClient:      ack,
-		TLSProcotocol:      tlsProto,
-		TLSProcotocolBytes: handshake_messages,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	//handshake_messages = append(handshake_messages, tlsBytes...)
+	//_, err := sendClientKeyExchangeToFinish(sendfd, TCPandServerHello{
+	//	ACKFromClient:      ack,
+	//	TLSProcotocol:      tlsProto,
+	//	TLSProcotocolBytes: handshake_messages,
+	//})
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
 	return nil
 }
 
-func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) ([]byte, error) {
+/*func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) ([]byte, error) {
 	var serverRandom []byte
 	var pubkey *rsa.PublicKey
 
@@ -404,13 +393,13 @@ func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) ([
 
 	changeCipher := NewChangeCipherSpec()
 
-	masterBytes := MasterSecret{
+	masterBytes := MasterSecretInfo{
 		PreMasterSecret: premasterBytes,
 		ServerRandom:    serverRandom,
 		ClientRandom:    serverhello.ClientHelloRandom,
 	}
 
-	verifyData, keyblock, _ := createVerifyData(masterBytes, CLientFinished, serverhello.TLSProcotocolBytes)
+	verifyData, keyblock, _ := createVerifyData(masterBytes, CLientFinishedLabel, serverhello.TLSProcotocolBytes)
 	// finished messageを作成する、先頭にヘッダを入れてからverify_dataを入れる
 	// 作成された16byteがplaintextとなり暗号化する
 	finMessage := []byte{HandshakeTypeFinished}
@@ -418,18 +407,13 @@ func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) ([
 	finMessage = append(finMessage, verifyData...)
 	fmt.Printf("finMessage : %x\n", finMessage)
 
-	rheader := TLSRecordHeader{
-		ContentType:     []byte{ContentTypeHandShake},
-		ProtocolVersion: TLS1_2,
-		Length:          uintTo2byte(uint16(len(finMessage))),
-	}
-
-	encryptFin := encryptMessage(rheader, keyblock.ClientWriteIV, finMessage, keyblock.ClientWriteKey)
+	rheader := NewTLSRecordHeader("Handshake", uint16(len(finMessage)))
+	//encryptFin := encryptMessage(rheader, keyblock.ClientWriteIV, finMessage, keyblock.ClientWriteKey)
 
 	var all []byte
 	all = append(all, clientKeyExchangeBytes...)
 	all = append(all, changeCipher...)
-	all = append(all, encryptFin...)
+	//all = append(all, encryptFin...)
 
 	fin := TCPIP{
 		DestIP:    LOCALIP,
@@ -454,3 +438,4 @@ func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) ([
 
 	return all, nil
 }
+*/

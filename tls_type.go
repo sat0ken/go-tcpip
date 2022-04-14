@@ -6,6 +6,8 @@ import (
 
 const (
 	ContentTypeHandShake           = 0x16
+	ContentTypeAlert               = 0x15
+	ContentTypeApplicationData     = 0x17
 	HandshakeTypeClientHello       = 0x01
 	HandshakeTypeServerHello       = 0x02
 	HandshakeTypeClientKeyExchange = 0x10 //=16
@@ -21,8 +23,8 @@ var TLS1_2 = []byte{0x03, 0x03}
 // 固定のラベル
 var MasterSecretLable = []byte(`master secret`)
 var KeyLable = []byte(`key expansion`)
-var CLientFinished = []byte(`client finished`)
-var ServerFinished = []byte(`server finished`)
+var CLientFinishedLabel = []byte(`client finished`)
+var ServerFinishedLabel = []byte(`server finished`)
 
 // https://www.ipa.go.jp/security/rfc/RFC5246-AAJA.html
 type TLSRecordHeader struct {
@@ -110,7 +112,8 @@ type TCPandServerHello struct {
 	ClientHelloRandom  []byte
 }
 
-type MasterSecret struct {
+type MasterSecretInfo struct {
+	MasterSecret    []byte
 	PreMasterSecret []byte
 	ServerRandom    []byte
 	ClientRandom    []byte
@@ -121,4 +124,11 @@ type KeyBlock struct {
 	ServerWriteKey []byte
 	ClientWriteIV  []byte
 	ServerWriteIV  []byte
+}
+
+type TLSInfo struct {
+	MasterSecretInfo  MasterSecretInfo
+	KeyBlock          KeyBlock
+	Handshakemessages []byte
+	ClientSequenceNum int
 }

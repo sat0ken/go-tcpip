@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/hacktls"
+	"fmt"
 	"log"
 	"os"
 )
@@ -26,9 +27,25 @@ func main() {
 		KeyLogWriter: w,
 		CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_GCM_SHA256},
 	}
-	client, err := tls.Dial("tcp", "127.0.0.1:10443", config)
+	conn, err := tls.Dial("tcp", "127.0.0.1:10443", config)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Close()
+	defer conn.Close()
+
+	n, err := conn.Write([]byte("hello\n"))
+	if err != nil {
+		log.Println(n, err)
+		return
+	}
+
+	buf := make([]byte, 500)
+	n, err = conn.Read(buf)
+	if err != nil {
+		log.Println(n, err)
+		return
+	}
+
+	fmt.Printf("message from server : %s\n", string(buf[:n]))
+
 }

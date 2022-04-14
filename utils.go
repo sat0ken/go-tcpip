@@ -84,9 +84,9 @@ func noRandomByte(length int) []byte {
 	return b
 }
 
-func getNonce(i uint64) []byte {
+func getNonce(i int) []byte {
 	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, i)
+	binary.BigEndian.PutUint64(b, uint64(i))
 	return b
 }
 

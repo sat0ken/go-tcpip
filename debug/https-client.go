@@ -20,6 +20,7 @@ func (zeroSource4) Read(b []byte) (n int, err error) {
 }
 
 func main() {
+	
 	w := os.Stdout
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{

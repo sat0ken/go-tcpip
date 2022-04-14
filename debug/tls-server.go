@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/hacktls"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -56,9 +57,15 @@ func handleConnection(conn net.Conn) {
 	defer conn.Close()
 	r := bufio.NewReader(conn)
 	for {
-		_, err := r.ReadString('\n')
+		msg, err := r.ReadString('\n')
 		if err != nil {
 			//log.Println(err)
+			return
+		}
+		fmt.Printf("message from client : %s\n", msg)
+		n, err := conn.Write([]byte("world\n"))
+		if err != nil {
+			log.Println(n, err)
 			return
 		}
 	}

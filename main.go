@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rsa"
+	"encoding/binary"
 	"fmt"
 	"github.com/k0kubun/pp/v3"
 	"log"
@@ -15,40 +16,26 @@ import (
 // sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 
 const (
-	LOCALIP = "127.0.0.1"
+	LOCALIP   = "127.0.0.1"
+	LOCALPORT = 10443
 	// github.com
 	GITHUBIP   = "13.114.40.48"
-	LOCALPORT  = 10443
 	GITHUBPORT = 443
 )
 
-func _() {
+func _main() {
+	var tlsinfo TLSInfo
+	tlsinfo.KeyBlock.ClientWriteIV = strtoByte("0bcd1746")
+	tlsinfo.KeyBlock.ClientWriteKey = strtoByte("475f58d5ca2aa6b36add62077ea4a340")
+	tlsinfo.ClientSequenceNum = 1
+
+	appdata := []byte("hello\n")
+	fmt.Printf("appdata : %x\n", appdata)
+	header := NewTLSRecordHeader("AppDada", uint16(len(appdata)))
+
+	encryptMessage(header, appdata, tlsinfo)
+
 	//decryptFinTest()
-	//b := strtoByte("16030300280000000000000000427ee17499822aea9bffa09c420f78630268de7926f162002809b8ad1f5096e3")
-	//decryptServerFinMessage(b)
-	var premasterByte []byte
-	premasterByte = append(premasterByte, TLS1_2...)
-	premasterByte = append(premasterByte, noRandomByte(46)...)
-
-	var random []byte
-	random = append(random, noRandomByte(32)...)
-	random = append(random, noRandomByte(32)...)
-
-	// master secretを作成する
-	master := prf(premasterByte, MasterSecretLable, random, 48)
-
-	var handshake_message []byte
-	handshake_message = append(handshake_message, strtoByte(clientHellostr)...)
-	handshake_message = append(handshake_message, strtoByte(serverHellostr)...)
-	handshake_message = append(handshake_message, strtoByte(serverCertificatestr)...)
-	handshake_message = append(handshake_message, strtoByte(serveHelloDonestr)...)
-	handshake_message = append(handshake_message, strtoByte(clientKeyExchagestr)...)
-	handshake_message = append(handshake_message, strtoByte(clientFinishstr)...)
-
-	fmt.Printf("%x\n", handshake_message)
-
-	fmt.Printf("%x\n", createServerVerifyData(master, handshake_message))
-	//createFinishTest()
 }
 
 func main() {
@@ -58,13 +45,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("connect err : %v\n", err)
 	}
-	fmt.Println("connect success !!")
+
 	var hello ClientHello
 	hellobyte := hello.NewRSAClientHello()
 	syscall.Write(sock, hellobyte)
 
-	var handshake_messages []byte
-	handshake_messages = append(handshake_messages, hellobyte[5:]...)
+	var tlsinfo TLSInfo
+	tlsinfo.MasterSecretInfo.ClientRandom = hello.Random
+	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, hellobyte[5:]...)
 
 	var tlsproto []TLSProtocol
 	var tlsbyte []byte
@@ -75,57 +63,54 @@ func main() {
 		if err != nil {
 			log.Fatalf("read err : %v", err)
 		}
+		// ServerHello, Certificates, ServerHelloDoneをパース
 		tlsproto, tlsbyte = unpackTLSPacket(recvBuf)
 		break
 	}
-	handshake_messages = append(handshake_messages, tlsbyte...)
 
-	var serverRandom []byte
+	// ServerHello, Certificates, ServerHelloDoneをappend
+	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, tlsbyte...)
+
 	var pubkey *rsa.PublicKey
-
 	for _, v := range tlsproto {
 		switch proto := v.HandshakeProtocol.(type) {
 		case ServerHello:
-			serverRandom = proto.Random
+			// ServerHelloからrandomを取り出す
+			tlsinfo.MasterSecretInfo.ServerRandom = proto.Random
 		case ServerCertificate:
 			_, ok := proto.Certificates[0].PublicKey.(*rsa.PublicKey)
 			if !ok {
 				log.Fatalf("cast pubkey err : %v\n", ok)
 			}
+			// Certificateからサーバの公開鍵を取り出す
 			pubkey = proto.Certificates[0].PublicKey.(*rsa.PublicKey)
 		}
 	}
 
+	// premaster secretをサーバの公開鍵で暗号化する
+	// 暗号化したらTLSのMessage形式にしてClientKeyExchangeを作る
 	var clientKeyExchange ClientKeyExchange
-	clientKeyExchangeBytes, premasterBytes := clientKeyExchange.NewClientKeyExchange(pubkey)
-	handshake_messages = append(handshake_messages, clientKeyExchangeBytes[5:]...)
+	var clientKeyExchangeBytes []byte
+	clientKeyExchangeBytes, tlsinfo.MasterSecretInfo.PreMasterSecret = clientKeyExchange.NewClientKeyExchange(pubkey)
+	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, clientKeyExchangeBytes[5:]...)
 
+	// ChangeCipherSpecのMessageを作る
 	changeCipher := NewChangeCipherSpec()
 
-	master := MasterSecret{
-		PreMasterSecret: premasterBytes,
-		ServerRandom:    serverRandom,
-		ClientRandom:    noRandomByte(32),
-	}
-
-	//fmt.Printf("handshake_message : %x\n", handshake_messages)
-
-	verifyData, keyblock, masterByte := createVerifyData(master, CLientFinished, handshake_messages)
+	var verifyData []byte
+	verifyData, tlsinfo.KeyBlock, tlsinfo.MasterSecretInfo.MasterSecret = createVerifyData(tlsinfo.MasterSecretInfo, CLientFinishedLabel, tlsinfo.Handshakemessages)
 	finMessage := []byte{HandshakeTypeFinished}
 	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
 	finMessage = append(finMessage, verifyData...)
 	fmt.Printf("finMessage : %x\n", finMessage)
 
 	// 送ったClient finishedを入れる、Serverからのfinishedと照合するため
-	handshake_messages = append(handshake_messages, finMessage...)
+	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, finMessage...)
 
-	rheader := TLSRecordHeader{
-		ContentType:     []byte{ContentTypeHandShake},
-		ProtocolVersion: TLS1_2,
-		Length:          uintTo2byte(uint16(len(finMessage))),
-	}
-
-	encryptFin := encryptMessage(rheader, keyblock.ClientWriteIV, finMessage, keyblock.ClientWriteKey)
+	rheader := NewTLSRecordHeader("Handshake", uint16(len(finMessage)))
+	encryptFin := encryptMessage(rheader, finMessage, tlsinfo)
+	fmt.Printf("ClientWriteIV : %x\n", tlsinfo.KeyBlock.ClientWriteIV)
+	fmt.Printf("ClientWriteKey : %x\n", tlsinfo.KeyBlock.ClientWriteKey)
 
 	var all []byte
 	all = append(all, clientKeyExchangeBytes...)
@@ -133,7 +118,6 @@ func main() {
 	all = append(all, encryptFin...)
 
 	syscall.Write(sock, all)
-	
 	for {
 		recvBuf := make([]byte, 1500)
 		_, _, err := syscall.Recvfrom(sock, recvBuf, 0)
@@ -143,8 +127,8 @@ func main() {
 		// 0byteがChangeCipherSpecであるか
 		if bytes.HasPrefix(recvBuf, []byte{HandshakeTypeChangeCipherSpec}) {
 			// 6byteからServerFinishedMessageになるのでそれをunpackする
-			serverfin := decryptServerFinMessage(recvBuf[6:51], keyblock)
-			verify := createServerVerifyData(masterByte, handshake_messages)
+			serverfin := decryptServerFinMessage(recvBuf[6:51], tlsinfo.KeyBlock, ContentTypeHandShake)
+			verify := createServerVerifyData(tlsinfo.MasterSecretInfo.MasterSecret, tlsinfo.Handshakemessages)
 
 			if bytes.Equal(serverfin[4:], verify) {
 				fmt.Printf("server fin : %x, client verify : %x, verify is ok !!\n", serverfin[4:], verify)
@@ -153,6 +137,38 @@ func main() {
 		break
 	}
 
+	//送って受け取ったらシーケンスを増やす
+	tlsinfo.ClientSequenceNum = 1
+	appdata := []byte("hello\n")
+	fmt.Printf("appdata : %x\n", appdata)
+
+	encAppdata := encryptMessage(NewTLSRecordHeader("AppDada", uint16(len(appdata))), appdata, tlsinfo)
+
+	//encryptAlert := encryptMessage(NewTLSRecordHeader("Alert", 2), []byte{0x01, 0x00}, tlsinfo)
+	syscall.Write(sock, encAppdata)
+	time.Sleep(10 * time.Millisecond)
+
+	for {
+		recvBuf := make([]byte, 1500)
+		_, _, err := syscall.Recvfrom(sock, recvBuf, 0)
+		if err != nil {
+			log.Fatalf("read err : %v", err)
+		}
+		// 0byteがApplication Dataであるか
+		if bytes.HasPrefix(recvBuf, []byte{ContentTypeApplicationData}) {
+			// 6byteからServerFinishedMessageになるのでそれをunpackする
+			length := binary.BigEndian.Uint16(recvBuf[3:5])
+			serverappdata := decryptServerFinMessage(recvBuf[0:length+5], tlsinfo.KeyBlock, ContentTypeApplicationData)
+			//fmt.Printf("app data from server : %x\n", appdata)
+			fmt.Printf("app data from server : %s\n", string(serverappdata))
+		}
+		break
+	}
+	tlsinfo.ClientSequenceNum = 2
+
+	encryptAlert := encryptMessage(NewTLSRecordHeader("Alert", 2), []byte{0x01, 0x00}, tlsinfo)
+	syscall.Write(sock, encryptAlert)
+	time.Sleep(10 * time.Millisecond)
 	syscall.Close(sock)
 }
 
