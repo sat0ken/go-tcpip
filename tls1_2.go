@@ -252,6 +252,7 @@ func unpackTLSHandshake(packet []byte) interface{} {
 			Length:        packet[1:4],
 		}
 		fmt.Printf("ServerHelloDone : %+v\n", i)
+	case HandshakeTypeFinished:
 	}
 
 	return i
@@ -263,7 +264,6 @@ func unpackTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 
 	// TCPのデータをContentType、TLSバージョンのbyte配列でSplitする
 	splitByte := bytes.Split(packet, []byte{0x16, 0x03, 0x03})
-	fmt.Printf("%v\n", splitByte)
 	for _, v := range splitByte {
 		if len(v) != 0 && (len(v)-2) == int(binary.BigEndian.Uint16(v[0:2])) {
 			//fmt.Printf("%d : %d\n", len(v), binary.BigEndian.Uint16(v[0:2]))
@@ -410,7 +410,7 @@ func sendClientKeyExchangeToFinish(sendfd int, serverhello TCPandServerHello) ([
 		ClientRandom:    serverhello.ClientHelloRandom,
 	}
 
-	verifyData, keyblock := createVerifyData(masterBytes, serverhello.TLSProcotocolBytes)
+	verifyData, keyblock, _ := createVerifyData(masterBytes, CLientFinished, serverhello.TLSProcotocolBytes)
 	// finished messageを作成する、先頭にヘッダを入れてからverify_dataを入れる
 	// 作成された16byteがplaintextとなり暗号化する
 	finMessage := []byte{HandshakeTypeFinished}

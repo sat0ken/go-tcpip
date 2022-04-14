@@ -22,10 +22,34 @@ const (
 	GITHUBPORT = 443
 )
 
-//func main() {
-//	//decryptPremaster()
-//	createFinishTest()
-//}
+func _() {
+	//decryptFinTest()
+	//b := strtoByte("16030300280000000000000000427ee17499822aea9bffa09c420f78630268de7926f162002809b8ad1f5096e3")
+	//decryptServerFinMessage(b)
+	var premasterByte []byte
+	premasterByte = append(premasterByte, TLS1_2...)
+	premasterByte = append(premasterByte, noRandomByte(46)...)
+
+	var random []byte
+	random = append(random, noRandomByte(32)...)
+	random = append(random, noRandomByte(32)...)
+
+	// master secretを作成する
+	master := prf(premasterByte, MasterSecretLable, random, 48)
+
+	var handshake_message []byte
+	handshake_message = append(handshake_message, strtoByte(clientHellostr)...)
+	handshake_message = append(handshake_message, strtoByte(serverHellostr)...)
+	handshake_message = append(handshake_message, strtoByte(serverCertificatestr)...)
+	handshake_message = append(handshake_message, strtoByte(serveHelloDonestr)...)
+	handshake_message = append(handshake_message, strtoByte(clientKeyExchagestr)...)
+	handshake_message = append(handshake_message, strtoByte(clientFinishstr)...)
+
+	fmt.Printf("%x\n", handshake_message)
+
+	fmt.Printf("%x\n", createServerVerifyData(master, handshake_message))
+	//createFinishTest()
+}
 
 func main() {
 	sock := NewSockStreemSocket()
@@ -78,19 +102,22 @@ func main() {
 
 	changeCipher := NewChangeCipherSpec()
 
-	masterBytes := MasterSecret{
+	master := MasterSecret{
 		PreMasterSecret: premasterBytes,
 		ServerRandom:    serverRandom,
 		ClientRandom:    noRandomByte(32),
 	}
 
-	fmt.Printf("handshake_message : %x\n", handshake_messages)
+	//fmt.Printf("handshake_message : %x\n", handshake_messages)
 
-	verifyData, keyblock := createVerifyData(masterBytes, handshake_messages)
+	verifyData, keyblock, masterByte := createVerifyData(master, CLientFinished, handshake_messages)
 	finMessage := []byte{HandshakeTypeFinished}
 	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
 	finMessage = append(finMessage, verifyData...)
 	fmt.Printf("finMessage : %x\n", finMessage)
+
+	// 送ったClient finishedを入れる、Serverからのfinishedと照合するため
+	handshake_messages = append(handshake_messages, finMessage...)
 
 	rheader := TLSRecordHeader{
 		ContentType:     []byte{ContentTypeHandShake},
@@ -106,14 +133,23 @@ func main() {
 	all = append(all, encryptFin...)
 
 	syscall.Write(sock, all)
-
+	
 	for {
 		recvBuf := make([]byte, 1500)
 		_, _, err := syscall.Recvfrom(sock, recvBuf, 0)
 		if err != nil {
 			log.Fatalf("read err : %v", err)
 		}
-		fmt.Printf("recv buf : %x\n", recvBuf)
+		// 0byteがChangeCipherSpecであるか
+		if bytes.HasPrefix(recvBuf, []byte{HandshakeTypeChangeCipherSpec}) {
+			// 6byteからServerFinishedMessageになるのでそれをunpackする
+			serverfin := decryptServerFinMessage(recvBuf[6:51], keyblock)
+			verify := createServerVerifyData(masterByte, handshake_messages)
+
+			if bytes.Equal(serverfin[4:], verify) {
+				fmt.Printf("server fin : %x, client verify : %x, verify is ok !!\n", serverfin[4:], verify)
+			}
+		}
 		break
 	}
 
