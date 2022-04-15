@@ -57,23 +57,33 @@ func prf(secret, label, clientServerRandom []byte, prfLength int) []byte {
 
 func createVerifyData(premasterBytes MasterSecretInfo, labels, handhake_messages []byte) ([]byte, KeyBlock, []byte) {
 	var random []byte
-	//random = append(random, premasterBytes.ClientRandom...)
 	// client randomeはいったん All zero
-	random = append(random, noRandomByte(32)...)
+	random = append(random, premasterBytes.ClientRandom...)
 	random = append(random, premasterBytes.ServerRandom...)
+
+	// keyblockを作るときはServer→ClienRandomの順番
+	// https://www.ipa.go.jp/security/rfc/RFC5246-06JA.html#063
+	var keyrandom []byte
+	keyrandom = append(keyrandom, premasterBytes.ServerRandom...)
+	keyrandom = append(keyrandom, premasterBytes.ClientRandom...)
 
 	// master secretを作成する
 	master := prf(premasterBytes.PreMasterSecret, MasterSecretLable, random, 48)
+	fmt.Printf("CLIENT_RANDOM %x %x\n", premasterBytes.ClientRandom, master)
 
-	keyblockbyte := prf(master, KeyLable, random, 40)
+	fmt.Printf("keyrandom : %x\n", keyrandom)
+	keyblockbyte := prf(master, KeyLable, keyrandom, 40)
 	keyblock := KeyBlock{
 		ClientWriteKey: keyblockbyte[0:16],
 		ServerWriteKey: keyblockbyte[16:32],
 		ClientWriteIV:  keyblockbyte[32:36],
 		ServerWriteIV:  keyblockbyte[36:40],
 	}
-	fmt.Printf("ServerWriteKey : %s\n", printByteArr(keyblock.ServerWriteKey))
-	fmt.Printf("ServerWriteIV : %s\n", printByteArr(keyblock.ServerWriteIV))
+	fmt.Printf("ClientWriteIV : %x\n", keyblock.ClientWriteIV)
+	fmt.Printf("ServerWriteKey : %x\n", keyblock.ClientWriteKey)
+	fmt.Printf("ServerWriteIV : %x\n", keyblock.ServerWriteIV)
+	fmt.Printf("ServerWriteKey : %x\n", keyblock.ServerWriteKey)
+	//fmt.Printf("ServerWriteKey : %x\n", keyblock.ServerWriteKey)
 
 	// これまでの全てのhandshake protocolでハッシュを計算する
 	hasher := sha256.New()
@@ -111,14 +121,16 @@ func createFinishTest() {
 	premasterByte = append(premasterByte, TLS1_2...)
 	premasterByte = append(premasterByte, noRandomByte(46)...)
 
+	serverrandom := strtoByte("e7084907d95b64c862825b77b73d38020d080eb924a3b7c0444f574e47524401")
+
 	master := MasterSecretInfo{
 		PreMasterSecret: premasterByte,
-		ServerRandom:    noRandomByte(32),
+		ServerRandom:    serverrandom,
 		ClientRandom:    noRandomByte(32),
 	}
 
 	// 12byteのverify_dataを作成
-	verifyData, _, masterByte := createVerifyData(master, CLientFinishedLabel, handshake_message)
+	verifyData, keyblock, _ := createVerifyData(master, CLientFinishedLabel, handshake_message)
 	fmt.Printf("client verifyData : %x\n", verifyData)
 
 	// finished messageを作成する、先頭にレコードヘッダを入れてからverify_dataを入れる
@@ -130,19 +142,23 @@ func createFinishTest() {
 
 	handshake_message = append(handshake_message, finMessage...)
 	//serververifyData, _ := createVerifyData(master, ServerFinished, handshake_message)
-	fmt.Printf("server verifyData : %x\n", createServerVerifyData(masterByte, handshake_message))
+	//fmt.Printf("server verifyData : %x\n", createServerVerifyData(masterByte, handshake_message))
 
 	rheader := TLSRecordHeader{
 		ContentType:     []byte{ContentTypeHandShake},
 		ProtocolVersion: TLS1_2,
 		Length:          uintTo2byte(uint16(len(finMessage))),
 	}
-	_ = rheader
 
-	//encryptMessage(toByteArr(rheader), keyblock.ClientWriteIV, finMessage, keyblock.ClientWriteKey)
+	tlsinfo := TLSInfo{
+		KeyBlock:          keyblock,
+		ClientSequenceNum: 0,
+	}
+
+	encryptClientMessage(toByteArr(rheader), finMessage, tlsinfo)
 }
 
-func encryptMessage(header, plaintext []byte, tlsinfo TLSInfo) []byte {
+func encryptClientMessage(header, plaintext []byte, tlsinfo TLSInfo) []byte {
 	//record, _ := hex.DecodeString("16030300100000000000000000")
 	//record_seq := toByteArr(header)
 	record_seq := append(header, getNonce(tlsinfo.ClientSequenceNum)...)
@@ -171,13 +187,7 @@ func encryptMessage(header, plaintext []byte, tlsinfo TLSInfo) []byte {
 	return encryptedMessage
 }
 
-func decryptServerFinMessage(finMessage []byte, keyblock KeyBlock, ctype int) []byte {
-
-	//header := TLSRecordHeader{
-	//	ContentType:     finMessage[0:1],
-	//	ProtocolVersion: finMessage[1:3],
-	//	Length:          finMessage[3:5],
-	//}
+func decryptServerMessage(finMessage []byte, tlsinfo TLSInfo, ctype int) []byte {
 
 	header := readByteNum(finMessage, 0, 5)
 	ciphertextLength := binary.BigEndian.Uint16(header[3:]) - 8
@@ -185,60 +195,77 @@ func decryptServerFinMessage(finMessage []byte, keyblock KeyBlock, ctype int) []
 	seq_nonce := readByteNum(finMessage, 5, 8)
 	ciphertext := readByteNum(finMessage, 13, int64(ciphertextLength))
 
-	//strtoByte("427ee17499822aea9bffa09c420f78630268de7926f162002809b8ad1f5096e3")
-
-	//header := []byte{ContentTypeHandShake}
-	//header := append(header, TLS1_2...)
-
-	//record := strtoByte("16030300100000000000000000")
-	//serverkey := strtoByte("475f58d5ca2aa6b36add62077ea4a340")
-	//nonce := strtoByte("0bcd1746")
-	serverkey := keyblock.ServerWriteKey
-	nonce := keyblock.ServerWriteIV
+	serverkey := tlsinfo.KeyBlock.ServerWriteKey
+	nonce := tlsinfo.KeyBlock.ServerWriteIV
 	nonce = append(nonce, seq_nonce...)
 
 	block, _ := aes.NewCipher(serverkey)
 	aesgcm, _ := cipher.NewGCM(block)
 
 	var add []byte
-	add = readByteNum(finMessage, 5, 8)
+	add = getNonce(tlsinfo.ClientSequenceNum)
 	add = append(add, byte(ctype))
 	add = append(add, TLS1_2...)
 	plainLength := len(ciphertext) - aesgcm.Overhead()
 	add = append(add, uintTo2byte(uint16(plainLength))...)
 
-	fmt.Printf("nonce is : %x, ciphertext is %x, add is %x\n", nonce, ciphertext, add)
+	//fmt.Printf("nonce is : %x, ciphertext is %x, add is %x\n", nonce, ciphertext, add)
 	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, add)
 	if err != nil {
 		panic(err.Error())
 	}
-
-	fmt.Printf("decrypt is %x\n", plaintext)
 
 	return plaintext
 
 }
 
 func decryptFinTest() {
+	serverrandom := strtoByte("94d1d67fb0fe4f841e88166a1572e7787307fb2c5cd56dcb444f574e47524401")
+	clientrandom := noRandomByte(32)
+	var random []byte
+	// client randomeはいったん All zero
+	random = append(random, clientrandom...)
+	random = append(random, serverrandom...)
 
-	ciphertext := strtoByte("186eebed19aa0506c996251b6126ccd6662dad42c075")
+	// keyblockを作るときはServer→ClienRandomの順番
+	// https://www.ipa.go.jp/security/rfc/RFC5246-06JA.html#063
+	var keyrandom []byte
+	keyrandom = append(keyrandom, serverrandom...)
+	keyrandom = append(keyrandom, clientrandom...)
+
+	var premasterByte []byte
+	premasterByte = append(premasterByte, TLS1_2...)
+	premasterByte = append(premasterByte, noRandomByte(46)...)
+
+	// master secretを作成する
+	master := prf(premasterByte, MasterSecretLable, random, 48)
+	fmt.Printf("CLIENT_RANDOM %x %x\n", clientrandom, master)
+
+	fmt.Printf("keyrandom : %x\n", keyrandom)
+	keyblockbyte := prf(master, KeyLable, keyrandom, 40)
+	keyblock := KeyBlock{
+		ClientWriteKey: keyblockbyte[0:16],
+		ServerWriteKey: keyblockbyte[16:32],
+		ClientWriteIV:  keyblockbyte[32:36],
+		ServerWriteIV:  keyblockbyte[36:40],
+	}
+
+	ciphertext := strtoByte("e40da4398ee3d35174abb36cd2c49160c19579d6aa08ccbf4684e09f93216bea")
 
 	//header := []byte{ContentTypeHandShake}
 	//header := append(header, TLS1_2...)
 
 	//record := strtoByte("16030300100000000000000000")
-	seq_nonce := getNonce(1)
+	//seq_nonce := getNonce(1)
+	nonce := keyblock.ServerWriteIV
+	nonce = append(nonce, strtoByte("12355ff49c01a9b7")...)
 
-	serverkey := strtoByte("475f58d5ca2aa6b36add62077ea4a340")
-	nonce := strtoByte("0bcd1746")
-	nonce = append(nonce, seq_nonce...)
-
-	block, _ := aes.NewCipher(serverkey)
+	block, _ := aes.NewCipher(keyblock.ServerWriteKey)
 	aesgcm, _ := cipher.NewGCM(block)
 
-	add := getNonce(1)
+	add := getNonce(0)
 	plainLength := len(ciphertext) - aesgcm.Overhead()
-	add = append(add, []byte{0x17, 0x03, 0x03}...)
+	add = append(add, []byte{0x16, 0x03, 0x03}...)
 	add = append(add, uintTo2byte(uint16(plainLength))...)
 	//add := strtoByte("00000000000000011703030006")
 
@@ -249,8 +276,8 @@ func decryptFinTest() {
 		panic(err.Error())
 	}
 
-	fmt.Printf("decrypt is %x\n", plaintext)
-	fmt.Printf("AppData is %s\n", string(plaintext))
+	fmt.Printf("decrypt is %x\n", plaintext[4:])
+	//fmt.Printf("AppData is %s\n", string(plaintext))
 }
 
 func decryptPremaster() {
@@ -260,7 +287,7 @@ func decryptPremaster() {
 	}
 
 	//premaster, _ := hex.DecodeString("7d4e98e480ec763ba78b36413c0c13686297aad706653f5d2582a96a5006b3fe0e1d00f9f833f39a9d5459567587fcc7f00aad553f0f2ff5aca7efd18d2ef484cac000bdf8d77b80935b1c7053cc832c6d4dcbb51c597d19c0213abb97c06cec27bcd67512f280e1211f80be4056590a11679baeae64f71af8230c34ce7562b16fcdad1d4abfc9be0ef4d10e02b9ebcfda862b99d23f407ca62d2055d9df107434a0046c4915afca067c1a8be40a8ee6ab492a78f11e805b8facaf1ad10ddaf4734b0b5453252e5c231f946682b333d3a0e31128aa6cfc38c97fb6b0eb0fed04c62b32c4f392e8e5a7faa47c0e3c151f5014fea0b34a18fc08095b6afab1519a")
-	premaster, _ := hex.DecodeString("64df1148bdeaaff4fb1a241e1c3fad5e72de3052872517cebe5580e149f4a7dae6f376702aa390e34a7f6ebe4abdf4f6444bb398d1a77c9b9be79c229e0dcdb8a15b3b4f908c611c9dd1b283acedc6e66bb0b301416965866200c9d84c28f4d5d48e159f6a5e86b9acec5c9f324813fc8bf7f5c13e6c74661ae88cbc5b9689bf1002d1764cce9f60393738202b62134e04f543046a47b84ac7d420ca3653af2fc5cafde09daf9d4c84dbf0fb38421603c909750f359ce82d83e6be6776fbc118e69ec083c0a6b208538317e1eebb1e5582b3dedd75a85f71e8f1ab3118fefe92152f66cb092a5af07b5e580f86067713a644be03d87fa96230e0e9b502f7987c")
+	premaster, _ := hex.DecodeString("7d4e98e480ec763ba78b36413c0c13686297aad706653f5d2582a96a5006b3fe0e1d00f9f833f39a9d5459567587fcc7f00aad553f0f2ff5aca7efd18d2ef484cac000bdf8d77b80935b1c7053cc832c6d4dcbb51c597d19c0213abb97c06cec27bcd67512f280e1211f80be4056590a11679baeae64f71af8230c34ce7562b16fcdad1d4abfc9be0ef4d10e02b9ebcfda862b99d23f407ca62d2055d9df107434a0046c4915afca067c1a8be40a8ee6ab492a78f11e805b8facaf1ad10ddaf4734b0b5453252e5c231f946682b333d3a0e31128aa6cfc38c97fb6b0eb0fed04c62b32c4f392e8e5a7faa47c0e3c151f5014fea0b34a18fc08095b6afab1519a")
 
 	secret, err := rsa.DecryptPKCS1v15(rand.Reader, certfile.PrivateKey.(*rsa.PrivateKey), premaster)
 	if err != nil {

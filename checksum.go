@@ -59,7 +59,7 @@ func toByteArr(value interface{}) []byte {
 
 	for i := 0; i < rv.NumField(); i++ {
 		//field := rt.Field(i)
-		// fmt.Printf("%s\n", field.Name)
+		//fmt.Printf("%s\n", field.Name)
 		b := rv.Field(i).Interface().([]byte)
 		arr = append(arr, b...)
 	}

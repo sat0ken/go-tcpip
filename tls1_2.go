@@ -30,9 +30,7 @@ func NewTLSRecordHeader(ctype string, length uint16) []byte {
 	return b
 }
 
-func (*ClientHello) NewRSAClientHello() []byte {
-	//var record TLSRecordHeader
-	//record = record.NewTLSRecordHeader("Handshake")
+func (*ClientHello) NewRSAClientHello() (clientrandom, clienthello []byte) {
 
 	handshake := ClientHello{
 		HandshakeType: []byte{HandshakeTypeClientHello},
@@ -57,7 +55,7 @@ func (*ClientHello) NewRSAClientHello() []byte {
 	hello = append(hello, NewTLSRecordHeader("Handshake", toByteLen(handshake))...)
 	hello = append(hello, toByteArr(handshake)...)
 
-	return hello
+	return handshake.Random, hello
 }
 
 // GoでデフォルトでセットされるのTLS extensionを返す
