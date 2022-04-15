@@ -33,11 +33,10 @@ func NewTLSRecordHeader(ctype string, length uint16) []byte {
 func (*ClientHello) NewRSAClientHello() (clientrandom, clienthello []byte) {
 
 	handshake := ClientHello{
-		HandshakeType: []byte{HandshakeTypeClientHello},
-		Length:        []byte{0x00, 0x00, 0x00},
-		Version:       TLS1_2,
-		Random:        noRandomByte(32),
-		//SessionID:          []byte{0x00},
+		HandshakeType:      []byte{HandshakeTypeClientHello},
+		Length:             []byte{0x00, 0x00, 0x00},
+		Version:            TLS1_2,
+		Random:             noRandomByte(32),
 		SessionIDLength:    []byte{0x20},
 		SessionID:          noRandomByte(32),
 		CipherSuitesLength: []byte{0x00, 0x02},
@@ -200,7 +199,7 @@ func unpackECDiffieHellmanParam(packet []byte) ECDiffieHellmanParam {
 	}
 }
 
-func unpackTLSHandshake(packet []byte) interface{} {
+func parseTLSHandshake(packet []byte) interface{} {
 	var i interface{}
 
 	switch packet[0] {
@@ -243,21 +242,24 @@ func unpackTLSHandshake(packet []byte) interface{} {
 	return i
 }
 
-func unpackTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
+func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 	var protocols []TLSProtocol
 	var protocolsByte []byte
-
+	fmt.Printf("recv buffer is %x\n", packet)
 	// TCPのデータをContentType、TLSバージョンのbyte配列でSplitする
 	splitByte := bytes.Split(packet, []byte{0x16, 0x03, 0x03})
+	// 先頭に空配列が入ってしまうので削除
+	//copy(splitByte, splitByte[1:len(splitByte)-1])
 	for _, v := range splitByte {
+		// 0x16, 0x03, 0x03でsplitするとレコードヘッダのLengthの2byteが先頭となる
+		// のでそのLengthとSplitされた配列の長さが合っているか
 		if len(v) != 0 && (len(v)-2) == int(binary.BigEndian.Uint16(v[0:2])) {
-			//fmt.Printf("%d : %d\n", len(v), binary.BigEndian.Uint16(v[0:2]))
 			rHeader := TLSRecordHeader{
 				ContentType:     []byte{0x16},
 				ProtocolVersion: []byte{0x03, 0x03},
 				Length:          v[0:2],
 			}
-			tls := unpackTLSHandshake(v[2:])
+			tls := parseTLSHandshake(v[2:])
 			proto := TLSProtocol{
 				RHeader:           rHeader,
 				HandshakeProtocol: tls,
@@ -271,7 +273,7 @@ func unpackTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 				Length:          v[0:2],
 			}
 			//ServerHelloDoneの4byteだけ
-			tls := unpackTLSHandshake(v[2:6])
+			tls := parseTLSHandshake(v[2:6])
 			proto := TLSProtocol{
 				RHeader:           rHeader,
 				HandshakeProtocol: tls,
@@ -328,7 +330,7 @@ func starFromClientHello(sendfd int, sendInfo TCPIP) error {
 				tcpBytes = append(tcpBytes, recvtcp.TCPData[0:tcpLength]...)
 				//fmt.Printf("PSHACK TCP Data : %s\n", printByteArr(tlsbyte))
 
-				tlsProto, tlsBytes = unpackTLSPacket(tcpBytes)
+				tlsProto, tlsBytes = parseTLSPacket(tcpBytes)
 				//pp.Println(tlsProto)
 
 				time.Sleep(10 * time.Millisecond)
