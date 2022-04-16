@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"crypto/tls"
+	"crypto/hacktls"
 	"fmt"
 	"log"
 	"net"
@@ -31,6 +31,7 @@ func main() {
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		Rand:         zeroSource{}, // for example only; don't do this.
+		MinVersion:   tls.VersionTLS12,
 		MaxVersion:   tls.VersionTLS12,
 		KeyLogWriter: w,
 	}

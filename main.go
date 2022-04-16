@@ -22,7 +22,7 @@ const (
 	GITHUBPORT = 443
 )
 
-func main() {
+func _() {
 	sock := NewSockStreemSocket()
 	addr := setSockAddrInet4(iptobyte(LOCALIP), LOCALPORT)
 	err := syscall.Connect(sock, &addr)
