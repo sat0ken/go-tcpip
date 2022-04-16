@@ -245,11 +245,8 @@ func parseTLSHandshake(packet []byte) interface{} {
 func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 	var protocols []TLSProtocol
 	var protocolsByte []byte
-	fmt.Printf("recv buffer is %x\n", packet)
 	// TCPのデータをContentType、TLSバージョンのbyte配列でSplitする
 	splitByte := bytes.Split(packet, []byte{0x16, 0x03, 0x03})
-	// 先頭に空配列が入ってしまうので削除
-	//copy(splitByte, splitByte[1:len(splitByte)-1])
 	for _, v := range splitByte {
 		// 0x16, 0x03, 0x03でsplitするとレコードヘッダのLengthの2byteが先頭となる
 		// のでそのLengthとSplitされた配列の長さが合っているか

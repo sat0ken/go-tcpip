@@ -57,7 +57,6 @@ func prf(secret, label, clientServerRandom []byte, prfLength int) []byte {
 
 func createVerifyData(premasterBytes MasterSecretInfo, labels, handhake_messages []byte) ([]byte, KeyBlock, []byte) {
 	var random []byte
-	// client randomeはいったん All zero
 	random = append(random, premasterBytes.ClientRandom...)
 	random = append(random, premasterBytes.ServerRandom...)
 
@@ -159,20 +158,15 @@ func createFinishTest() {
 }
 
 func encryptClientMessage(header, plaintext []byte, tlsinfo TLSInfo) []byte {
-	//record, _ := hex.DecodeString("16030300100000000000000000")
-	//record_seq := toByteArr(header)
+	
 	record_seq := append(header, getNonce(tlsinfo.ClientSequenceNum)...)
 
-	//nonce, _ := hex.DecodeString("6f91b6850000000000000000")
 	nonce := tlsinfo.KeyBlock.ClientWriteIV
 	nonce = append(nonce, getNonce(tlsinfo.ClientSequenceNum)...)
 
-	//plaintext2, _ := hex.DecodeString("1400000cfce82f0b05fe58f0279716c3")
-	//add, _ := hex.DecodeString("00000000000000001603030010")
 	add := getNonce(tlsinfo.ClientSequenceNum)
 	add = append(add, header...)
 
-	//key, _ := hex.DecodeString("5fa182b333543f7cf6dcf0eceebe9393")
 	block, _ := aes.NewCipher(tlsinfo.KeyBlock.ClientWriteKey)
 	aesgcm, _ := cipher.NewGCM(block)
 
