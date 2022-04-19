@@ -29,11 +29,12 @@ func main() {
 	w := os.Stdout
 	// https://pkg.go.dev/crypto/tls#Config
 	config := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		Rand:         zeroSource{}, // for example only; don't do this.
-		MinVersion:   tls.VersionTLS12,
-		MaxVersion:   tls.VersionTLS12,
-		KeyLogWriter: w,
+		Certificates:     []tls.Certificate{cert},
+		Rand:             zeroSource{}, // for example only; don't do this.
+		MinVersion:       tls.VersionTLS12,
+		MaxVersion:       tls.VersionTLS12,
+		CurvePreferences: []tls.CurveID{tls.X25519},
+		KeyLogWriter:     w,
 	}
 	ln, err := tls.Listen("tcp", ":10443", config)
 	if err != nil {

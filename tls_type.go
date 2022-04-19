@@ -16,6 +16,7 @@ const (
 	HandshakeTypeServerHelloDone   = 0x0e
 	HandshakeTypeChangeCipherSpec  = 0x14 //=20
 	HandshakeTypeFinished          = 0x14
+	CurveIDx25519                  = 0x1D
 )
 
 var TLS1_2 = []byte{0x03, 0x03}
@@ -96,13 +97,12 @@ type TLSProtocol struct {
 type ClientKeyExchange struct {
 	HandshakeType []byte
 	Length        []byte
-
 	// RSA
 	EncryptedPreMasterSecretLength []byte
 	EncryptedPreMasterSecret       []byte
 	// ECDHE
-	// PubkeyLength []byte
-	// Pubkey []byte
+	PubkeyLength []byte
+	Pubkey       []byte
 }
 
 type TCPandServerHello struct {
@@ -131,4 +131,11 @@ type TLSInfo struct {
 	KeyBlock          KeyBlock
 	Handshakemessages []byte
 	ClientSequenceNum int
+	ECDHEKeys         ECDHEKeys
+}
+
+type ECDHEKeys struct {
+	privateKey []byte
+	publicKey  []byte
+	sharedKey  []byte
 }

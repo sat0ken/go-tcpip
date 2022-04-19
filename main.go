@@ -22,7 +22,7 @@ const (
 	GITHUBPORT = 443
 )
 
-func _() {
+func main() {
 	sock := NewSockStreemSocket()
 	addr := setSockAddrInet4(iptobyte(LOCALIP), LOCALPORT)
 	err := syscall.Connect(sock, &addr)
@@ -71,9 +71,16 @@ func _() {
 			}
 			// Certificateからサーバの公開鍵を取り出す
 			pubkey = proto.Certificates[0].PublicKey.(*rsa.PublicKey)
+		case ServerKeyExchange:
+			if proto.ECDiffieHellmanServerParams.NamedCurve[1] == CurveIDx25519 {
+				// サーバの公開鍵でECDHEの鍵交換を行う
+				tlsinfo.ECDHEKeys = genrateECDHESharedKey(proto.ECDiffieHellmanServerParams.Pubkey)
+				// premaster secretに共通鍵をセット
+				tlsinfo.MasterSecretInfo.PreMasterSecret = tlsinfo.ECDHEKeys.sharedKey
+			}
 		}
 	}
-
+	_ = pubkey
 	fmt.Printf("ClientRandom : %x\n", tlsinfo.MasterSecretInfo.ClientRandom)
 	fmt.Printf("ServerRandom : %x\n", tlsinfo.MasterSecretInfo.ServerRandom)
 
@@ -81,7 +88,9 @@ func _() {
 	// 暗号化したらTLSのMessage形式にしてClientKeyExchangeを作る
 	var clientKeyExchange ClientKeyExchange
 	var clientKeyExchangeBytes []byte
-	clientKeyExchangeBytes, tlsinfo.MasterSecretInfo.PreMasterSecret = clientKeyExchange.NewClientKeyExchange(pubkey)
+	//clientKeyExchangeBytes, tlsinfo.MasterSecretInfo.PreMasterSecret = clientKeyExchange.NewClientKeyRSAExchange(pubkey)
+	// 生成した公開鍵をClientKeyExchangeにセットする
+	clientKeyExchangeBytes = clientKeyExchange.NewClientKeyECDHAExchange(tlsinfo.ECDHEKeys.publicKey)
 	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, clientKeyExchangeBytes[5:]...)
 
 	// ChangeCipherSpecのMessageを作る
@@ -133,7 +142,7 @@ func _() {
 	reqbyte := req.reqtoByteArr(req)
 	encAppdata := encryptClientMessage(NewTLSRecordHeader("AppDada", uint16(len(reqbyte))), reqbyte, tlsinfo)
 
-	fmt.Printf("appdata : %x\n", reqbyte)
+	//fmt.Printf("appdata : %x\n", reqbyte)
 
 	//appdata := []byte("hello\n")
 	//encAppdata := encryptClientMessage(NewTLSRecordHeader("AppDada", uint16(len(appdata))), appdata, tlsinfo)

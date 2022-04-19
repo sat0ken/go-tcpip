@@ -2,7 +2,10 @@ module tcpip
 
 go 1.17
 
-require github.com/k0kubun/pp/v3 v3.1.0
+require (
+	github.com/k0kubun/pp/v3 v3.1.0
+	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
+)
 
 require (
 	github.com/mattn/go-colorable v0.1.12 // indirect

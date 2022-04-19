@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"fmt"
+	"golang.org/x/crypto/curve25519"
 	"log"
 	"syscall"
 	"time"
@@ -41,7 +42,9 @@ func (*ClientHello) NewRSAClientHello() (clientrandom, clienthello []byte) {
 		SessionID:          noRandomByte(32),
 		CipherSuitesLength: []byte{0x00, 0x02},
 		// TLS_RSA_WITH_AES_128_GCM_SHA256
-		CipherSuites:      []byte{0x00, 0x9c},
+		//CipherSuites:      []byte{0x00, 0x9c},
+		// ECDHE-RSA-AES128-GCM-SHA256
+		CipherSuites:      []byte{0xC0, 0x2F},
 		CompressionLength: []byte{0x01},
 		CompressionMethod: []byte{0x00},
 		Extensions:        setTLSExtenstions(),
@@ -90,7 +93,7 @@ func setTLSExtenstions() []byte {
 	return tlsExtension
 }
 
-func (*ClientKeyExchange) NewClientKeyExchange(pubkey *rsa.PublicKey) (clientKeyExchange, premasterByte []byte) {
+func (*ClientKeyExchange) NewClientKeyRSAExchange(pubkey *rsa.PublicKey) (clientKeyExchange, premasterByte []byte) {
 
 	// 46byteのランダムなpremaster secretを生成する
 	// https://www.ipa.go.jp/security/rfc/RFC5246-07JA.html#07471
@@ -120,6 +123,25 @@ func (*ClientKeyExchange) NewClientKeyExchange(pubkey *rsa.PublicKey) (clientKey
 	clientKeyExchange = append(clientKeyExchange, toByteArr(clientKey)...)
 
 	return clientKeyExchange, premasterByte
+}
+
+func (*ClientKeyExchange) NewClientKeyECDHAExchange(clientPublicKey []byte) (clientKeyExchange []byte) {
+	clientKey := ClientKeyExchange{
+		HandshakeType: []byte{HandshakeTypeClientKeyExchange},
+		Length:        []byte{0x00, 0x00, 0x00},
+		// 32byteなので固定
+		PubkeyLength: []byte{0x20},
+		Pubkey:       clientPublicKey,
+	}
+
+	// Lengthをセット
+	clientKey.Length = uintTo3byte(uint32(toByteLen(clientKey) - 4))
+
+	// byte配列にする
+	clientKeyExchange = append(clientKeyExchange, NewTLSRecordHeader("Handshake", toByteLen(clientKey))...)
+	clientKeyExchange = append(clientKeyExchange, toByteArr(clientKey)...)
+
+	return clientKeyExchange
 }
 
 func NewChangeCipherSpec() []byte {
@@ -192,10 +214,28 @@ func unpackECDiffieHellmanParam(packet []byte) ECDiffieHellmanParam {
 		CurveType:          packet[0:1],
 		NamedCurve:         packet[1:3],
 		PubkeyLength:       packet[3:4],
-		Pubkey:             readByteNum(packet, 4, 32),
+		Pubkey:             packet[4:36],
 		SignatureAlgorithm: packet[36:38],
 		SignatureLength:    packet[38:40],
 		Signature:          packet[40:],
+	}
+}
+
+func genrateECDHESharedKey(serverPublicKey []byte) ECDHEKeys {
+	// 秘密鍵となる32byteの乱数をセット
+	clientPrivateKey := randomByte(curve25519.ScalarSize)
+	// ClientKeyExchangeでサーバに送る公開鍵を生成
+	clientPublicKey, _ := curve25519.X25519(clientPrivateKey, curve25519.Basepoint)
+
+	// サーバの公開鍵と鍵交換をする
+	clientSharedKey, _ := curve25519.X25519(clientPrivateKey, serverPublicKey)
+	fmt.Printf("gen public key is : %x\n", clientPublicKey)
+	fmt.Printf("gen shared key is : %x\n", clientSharedKey)
+
+	return ECDHEKeys{
+		privateKey: clientPrivateKey,
+		publicKey:  clientPublicKey,
+		sharedKey:  clientSharedKey,
 	}
 }
 
