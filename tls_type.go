@@ -5,18 +5,20 @@ import (
 )
 
 const (
-	ContentTypeHandShake           = 0x16
-	ContentTypeAlert               = 0x15
-	ContentTypeApplicationData     = 0x17
-	HandshakeTypeClientHello       = 0x01
-	HandshakeTypeServerHello       = 0x02
-	HandshakeTypeClientKeyExchange = 0x10 //=16
-	HandshakeTypeServerCertificate = 0x0b //=11
-	HandshakeTypeServerKeyExchange = 0x0c
-	HandshakeTypeServerHelloDone   = 0x0e
-	HandshakeTypeChangeCipherSpec  = 0x14 //=20
-	HandshakeTypeFinished          = 0x14
-	CurveIDx25519                  = 0x1D
+	ContentTypeHandShake            = 0x16
+	ContentTypeAlert                = 0x15
+	ContentTypeApplicationData      = 0x17
+	HandshakeTypeClientHello        = 0x01
+	HandshakeTypeServerHello        = 0x02
+	HandshakeTypeClientKeyExchange  = 0x10 //=16
+	HandshakeTypeCertificate        = 0x0b //=11
+	HandshakeTypeServerKeyExchange  = 0x0c
+	HandshakeTypeCertificateRequest = 0x0d
+	HandshakeTypeServerHelloDone    = 0x0e
+	HandshakeTypeCertificateVerify  = 0x0f
+	HandshakeTypeChangeCipherSpec   = 0x14 //=20
+	HandshakeTypeFinished           = 0x14
+	CurveIDx25519                   = 0x1D
 )
 
 var TLS1_2 = []byte{0x03, 0x03}
@@ -32,6 +34,20 @@ type TLSRecordHeader struct {
 	ContentType     []byte
 	ProtocolVersion []byte
 	Length          []byte
+}
+
+type ClientHello struct {
+	HandshakeType      []byte
+	Length             []byte
+	Version            []byte
+	Random             []byte
+	SessionIDLength    []byte
+	SessionID          []byte
+	CipherSuitesLength []byte
+	CipherSuites       []byte
+	CompressionLength  []byte
+	CompressionMethod  []byte
+	Extensions         []byte
 }
 
 type ServerHello struct {
@@ -58,23 +74,46 @@ type ServerKeyExchange struct {
 	ECDiffieHellmanServerParams ECDiffieHellmanParam
 }
 
+type CertificateRequest struct {
+	HandshakeType                 []byte
+	Length                        []byte
+	CertificateTypesCount         []byte
+	CertificateTypes              []byte
+	SignatureHashAlgorithmsLength []byte
+	SignatureHashAlgorithms       []byte
+}
+
+type ClientCertificate struct {
+	HandshakeType      []byte
+	Length             []byte
+	CertificatesLength []byte
+	CertificateLength  []byte
+	Certificate        []byte
+}
+
+// https://qiita.com/n-i-e/items/41673fd16d7bd1189a29
+type ClientKeyExchange struct {
+	HandshakeType []byte
+	Length        []byte
+	// RSA
+	EncryptedPreMasterSecretLength []byte
+	EncryptedPreMasterSecret       []byte
+	// ECDHE
+	PubkeyLength []byte
+	Pubkey       []byte
+}
+
+type CertificateVerify struct {
+	HandshakeType           []byte
+	Length                  []byte
+	SignatureHashAlgorithms []byte
+	SignatureLength         []byte
+	Signature               []byte
+}
+
 type ServerHelloDone struct {
 	HandshakeType []byte
 	Length        []byte
-}
-
-type ClientHello struct {
-	HandshakeType      []byte
-	Length             []byte
-	Version            []byte
-	Random             []byte
-	SessionIDLength    []byte
-	SessionID          []byte
-	CipherSuitesLength []byte
-	CipherSuites       []byte
-	CompressionLength  []byte
-	CompressionMethod  []byte
-	Extensions         []byte
 }
 
 // https://www.ipa.go.jp/security/rfc/RFC5246-07JA.html#0743
@@ -91,18 +130,6 @@ type ECDiffieHellmanParam struct {
 type TLSProtocol struct {
 	RHeader           TLSRecordHeader
 	HandshakeProtocol interface{}
-}
-
-// https://qiita.com/n-i-e/items/41673fd16d7bd1189a29
-type ClientKeyExchange struct {
-	HandshakeType []byte
-	Length        []byte
-	// RSA
-	EncryptedPreMasterSecretLength []byte
-	EncryptedPreMasterSecret       []byte
-	// ECDHE
-	PubkeyLength []byte
-	Pubkey       []byte
 }
 
 type TCPandServerHello struct {

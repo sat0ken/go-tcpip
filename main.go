@@ -16,13 +16,15 @@ import (
 
 const (
 	LOCALIP   = "127.0.0.1"
-	LOCALPORT = 8443
+	LOCALPORT = 10443
 	// github.com
 	GITHUBIP   = "13.114.40.48"
 	GITHUBPORT = 443
 )
 
 func main() {
+	clientCert := readClientCertificate()
+
 	sock := NewSockStreemSocket()
 	addr := setSockAddrInet4(iptobyte(LOCALIP), LOCALPORT)
 	err := syscall.Connect(sock, &addr)
@@ -84,16 +86,28 @@ func main() {
 	fmt.Printf("ClientRandom : %x\n", tlsinfo.MasterSecretInfo.ClientRandom)
 	fmt.Printf("ServerRandom : %x\n", tlsinfo.MasterSecretInfo.ServerRandom)
 
+	//certificateメッセージを作る
+	var clientCertMessage ClientCertificate
+	clientCertMessageBytes := clientCertMessage.NewClientCertificate(clientCert)
+	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, clientCertMessageBytes[5:]...)
+
+	// ClientKeyExchangeメッセージを作る
 	// premaster secretをサーバの公開鍵で暗号化する
 	// 暗号化したらTLSのMessage形式にしてClientKeyExchangeを作る
 	var clientKeyExchange ClientKeyExchange
 	var clientKeyExchangeBytes []byte
+	// RSA鍵交換のとき
 	//clientKeyExchangeBytes, tlsinfo.MasterSecretInfo.PreMasterSecret = clientKeyExchange.NewClientKeyRSAExchange(pubkey)
 	// 生成した公開鍵をClientKeyExchangeにセットする
 	clientKeyExchangeBytes = clientKeyExchange.NewClientKeyECDHAExchange(tlsinfo.ECDHEKeys.publicKey)
 	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, clientKeyExchangeBytes[5:]...)
 
-	// ChangeCipherSpecのMessageを作る
+	// CertificateVerifyメッセージを作る
+	var certVerify CertificateVerify
+	certVerifyBytes := certVerify.NewCertificateVerify(clientCert, tlsinfo.Handshakemessages)
+	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, certVerifyBytes[5:]...)
+
+	// ChangeCipherSpecメッセージを作る
 	changeCipher := NewChangeCipherSpec()
 
 	var verifyData []byte
@@ -111,7 +125,9 @@ func main() {
 
 	// ClientKeyexchange, ChangeCipehrspec, ClientFinsihedを全部まとめる
 	var all []byte
+	all = append(all, clientCertMessageBytes...)
 	all = append(all, clientKeyExchangeBytes...)
+	all = append(all, certVerifyBytes...)
 	all = append(all, changeCipher...)
 	all = append(all, encryptFin...)
 
@@ -138,14 +154,14 @@ func main() {
 	//送って受け取ったらシーケンスを増やす
 	tlsinfo.ClientSequenceNum++
 
-	req := NewHttpGetRequest("/", fmt.Sprintf("%s:%d", LOCALIP, LOCALPORT))
-	reqbyte := req.reqtoByteArr(req)
-	encAppdata := encryptClientMessage(NewTLSRecordHeader("AppDada", uint16(len(reqbyte))), reqbyte, tlsinfo)
+	//req := NewHttpGetRequest("/", fmt.Sprintf("%s:%d", LOCALIP, LOCALPORT))
+	//reqbyte := req.reqtoByteArr(req)
+	//encAppdata := encryptClientMessage(NewTLSRecordHeader("AppDada", uint16(len(reqbyte))), reqbyte, tlsinfo)
 
 	//fmt.Printf("appdata : %x\n", reqbyte)
 
-	//appdata := []byte("hello\n")
-	//encAppdata := encryptClientMessage(NewTLSRecordHeader("AppDada", uint16(len(appdata))), appdata, tlsinfo)
+	appdata := []byte("hello\n")
+	encAppdata := encryptClientMessage(NewTLSRecordHeader("AppDada", uint16(len(appdata))), appdata, tlsinfo)
 	syscall.Write(sock, encAppdata)
 
 	time.Sleep(10 * time.Millisecond)

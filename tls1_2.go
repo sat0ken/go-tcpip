@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
 	"fmt"
@@ -149,6 +152,62 @@ func NewChangeCipherSpec() []byte {
 	return []byte{0x14, 0x03, 0x03, 0x00, 0x01, 0x01}
 }
 
+func (*ClientCertificate) NewClientCertificate(cert tls.Certificate) (clientCertBytes []byte) {
+
+	clientCert := ClientCertificate{
+		HandshakeType:      []byte{HandshakeTypeCertificate},
+		Length:             []byte{0x00, 0x00, 0x00},
+		CertificatesLength: uintTo3byte(uint32(len(cert.Certificate[0]) + 3)),
+		CertificateLength:  uintTo3byte(uint32(len(cert.Certificate[0]))),
+		Certificate:        cert.Certificate[0],
+	}
+
+	// Lengthをセット
+	clientCert.Length = uintTo3byte(uint32(toByteLen(clientCert) - 4))
+
+	// TLSレコードヘッダを入れてbyte配列にする
+	clientCertBytes = append(clientCertBytes, NewTLSRecordHeader("Handshake", toByteLen(clientCert))...)
+	clientCertBytes = append(clientCertBytes, toByteArr(clientCert)...)
+
+	return clientCertBytes
+}
+
+func (*CertificateVerify) NewCertificateVerify(certs tls.Certificate, handshake_messages []byte) (certVerifyBytes []byte) {
+
+	hasher := sha256.New()
+	hasher.Write(handshake_messages)
+	messages := hasher.Sum(nil)
+
+	fmt.Printf("messages sum is %x\n", messages)
+
+	rsaPrivatekey := certs.PrivateKey.(*rsa.PrivateKey)
+	signOpts := &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash}
+	signature, err := rsa.SignPSS(zeroSource{}, rsaPrivatekey, crypto.SHA256, messages, signOpts)
+	//signature, err := rsa.SignPKCS1v15(zeroSource{}, rsaPrivatekey, crypto.SHA256, messages)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	verify := CertificateVerify{
+		HandshakeType: []byte{HandshakeTypeCertificateVerify},
+		Length:        []byte{0x00, 0x00, 0x00},
+		// rsa_pss_rsae_sha256 = 0804
+		SignatureHashAlgorithms: []byte{0x08, 0x04},
+		// SHA256なのでLengthは256
+		SignatureLength: []byte{0x01, 0x00},
+		Signature:       signature,
+	}
+
+	// Lengthをセット
+	verify.Length = uintTo3byte(uint32(toByteLen(verify) - 4))
+
+	// TLSレコードヘッダを入れてbyte配列にする
+	certVerifyBytes = append(certVerifyBytes, NewTLSRecordHeader("Handshake", toByteLen(verify))...)
+	certVerifyBytes = append(certVerifyBytes, toByteArr(verify)...)
+
+	return certVerifyBytes
+}
+
 func readCertificates(packet []byte) []*x509.Certificate {
 
 	var b []byte
@@ -255,7 +314,7 @@ func parseTLSHandshake(packet []byte) interface{} {
 		}
 		fmt.Printf("ServerHello : %+v\n", i)
 		//fmt.Printf("Cipher Suite is : %s\n", tls.CipherSuiteName(binary.BigEndian.Uint16(packet[39:41])))
-	case HandshakeTypeServerCertificate:
+	case HandshakeTypeCertificate:
 		i = ServerCertificate{
 			HandshakeType:      packet[0:1],
 			Length:             packet[1:4],
@@ -270,13 +329,22 @@ func parseTLSHandshake(packet []byte) interface{} {
 			ECDiffieHellmanServerParams: unpackECDiffieHellmanParam(packet[4:]),
 		}
 		fmt.Printf("ServerKeyExchange : %+v\n", i)
+	case HandshakeTypeCertificateRequest:
+		i = CertificateRequest{
+			HandshakeType:                 packet[0:1],
+			Length:                        packet[1:4],
+			CertificateTypesCount:         packet[4:5],
+			CertificateTypes:              packet[5:7],
+			SignatureHashAlgorithmsLength: packet[7:9],
+			SignatureHashAlgorithms:       packet[9:],
+		}
+		fmt.Printf("CertificateRequest : %+v\n", i)
 	case HandshakeTypeServerHelloDone:
 		i = ServerHelloDone{
 			HandshakeType: packet[0:1],
 			Length:        packet[1:4],
 		}
 		fmt.Printf("ServerHelloDone : %+v\n", i)
-	case HandshakeTypeFinished:
 	}
 
 	return i

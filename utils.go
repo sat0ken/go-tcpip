@@ -94,3 +94,22 @@ func strtoByte(str string) []byte {
 	b, _ := hex.DecodeString(str)
 	return b
 }
+
+func readClientCertificate() tls.Certificate {
+	cert, err := tls.LoadX509KeyPair("debug/client.pem", "debug/client-key.pem")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return cert
+}
+
+// zeroSource is an io.Reader that returns an unlimited number of zero bytes.
+type zeroSource struct{}
+
+func (zeroSource) Read(b []byte) (n int, err error) {
+	for i := range b {
+		b[i] = 0
+	}
+
+	return len(b), nil
+}
