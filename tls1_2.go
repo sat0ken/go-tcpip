@@ -233,22 +233,32 @@ func readCertificates(packet []byte) []*x509.Certificate {
 
 	// TLS Handshak protocolのCertificatesのLengthが0になるまでx509証明書をReadする
 	// 読み込んだx509証明書を配列に入れる
-	for {
-		if len(packet) == 0 {
-			break
-		} else {
-			length := sum3BytetoLength(packet[0:3])
-			//b := make([]byte, length)
-			b = readByteNum(packet, 3, int64(length))
-			cert, err := x509.ParseCertificate(b)
-			if err != nil {
-				log.Fatalf("ParseCertificate error : %s", err)
-			}
-			certificates = append(certificates, cert)
-			//byte配列を縮める
-			packet = packet[3+length:]
-		}
+	length := sum3BytetoLength(packet[0:3])
+	b = packet[3 : length+3]
+	fmt.Printf("%x\n", b)
+	cert, err := x509.ParseCertificate(b)
+	if err != nil {
+		log.Fatalf("ParseCertificate error : %s", err)
 	}
+	certificates = append(certificates, cert)
+	//for {
+	//	if len(packet) == 0 {
+	//		break
+	//	} else {
+	//		length := sum3BytetoLength(packet[0:3])
+	//		//b := make([]byte, length)
+	//		//b = readByteNum(packet, 3, int64(length))
+	//		b = packet[3 : length+3]
+	//		fmt.Printf("%x\n", b)
+	//		cert, err := x509.ParseCertificate(b)
+	//		if err != nil {
+	//			log.Fatalf("ParseCertificate error : %s", err)
+	//		}
+	//		certificates = append(certificates, cert)
+	//		//byte配列を縮める
+	//		packet = packet[3+length:]
+	//	}
+	//}
 
 	// 証明書を検証する
 	// 配列にはサーバ証明書、中間証明書の順番で格納されているので中間証明書から検証していくので
@@ -358,11 +368,21 @@ func parseTLSHandshake(packet []byte, version string) interface{} {
 
 		fmt.Printf("ServerHello : %+v\n", i)
 	case HandshakeTypeCertificate:
-		i = ServerCertificate{
-			HandshakeType:      packet[0:1],
-			Length:             packet[1:4],
-			CertificatesLength: packet[4:7],
-			Certificates:       readCertificates(packet[7:]),
+		if version == "1.2" {
+			i = ServerCertificate{
+				HandshakeType:      packet[0:1],
+				Length:             packet[1:4],
+				CertificatesLength: packet[4:7],
+				Certificates:       readCertificates(packet[7:]),
+			}
+		} else {
+			i = ServerCertificate{
+				HandshakeType:                    packet[0:1],
+				Length:                           packet[1:4],
+				CertificatesRequestContextLength: packet[4:5],
+				CertificatesLength:               packet[5:8],
+				Certificates:                     readCertificates(packet[8:]),
+			}
 		}
 		fmt.Printf("Certificate : %+v\n", i)
 	case HandshakeTypeServerKeyExchange:
@@ -388,6 +408,13 @@ func parseTLSHandshake(packet []byte, version string) interface{} {
 			Length:        packet[1:4],
 		}
 		fmt.Printf("ServerHelloDone : %+v\n", i)
+	case HandshakeTypeEncryptedExtensions:
+		i = EncryptedExtensions{
+			HandshakeType:   packet[0:1],
+			Length:          packet[1:4],
+			ExtensionLength: packet[4:6],
+		}
+		fmt.Printf("EncryptedExtensions : %+v\n", i)
 	}
 
 	return i

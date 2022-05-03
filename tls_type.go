@@ -5,20 +5,21 @@ import (
 )
 
 const (
-	ContentTypeHandShake            = 0x16
-	ContentTypeAlert                = 0x15
-	ContentTypeApplicationData      = 0x17
-	HandshakeTypeClientHello        = 0x01
-	HandshakeTypeServerHello        = 0x02
-	HandshakeTypeClientKeyExchange  = 0x10 //=16
-	HandshakeTypeCertificate        = 0x0b //=11
-	HandshakeTypeServerKeyExchange  = 0x0c
-	HandshakeTypeCertificateRequest = 0x0d
-	HandshakeTypeServerHelloDone    = 0x0e
-	HandshakeTypeCertificateVerify  = 0x0f
-	HandshakeTypeChangeCipherSpec   = 0x14 //=20
-	HandshakeTypeFinished           = 0x14
-	CurveIDx25519                   = 0x1D
+	ContentTypeHandShake             = 0x16
+	ContentTypeAlert                 = 0x15
+	ContentTypeApplicationData       = 0x17
+	HandshakeTypeClientHello         = 0x01
+	HandshakeTypeServerHello         = 0x02
+	HandshakeTypeEncryptedExtensions = 0x08
+	HandshakeTypeClientKeyExchange   = 0x10 //=16
+	HandshakeTypeCertificate         = 0x0b //=11
+	HandshakeTypeServerKeyExchange   = 0x0c
+	HandshakeTypeCertificateRequest  = 0x0d
+	HandshakeTypeServerHelloDone     = 0x0e
+	HandshakeTypeCertificateVerify   = 0x0f
+	HandshakeTypeChangeCipherSpec    = 0x14 //=20
+	HandshakeTypeFinished            = 0x14
+	CurveIDx25519                    = 0x1D
 )
 
 var TLS1_2 = []byte{0x03, 0x03}
@@ -77,10 +78,11 @@ type TLSExtensions struct {
 }
 
 type ServerCertificate struct {
-	HandshakeType      []byte
-	Length             []byte
-	CertificatesLength []byte
-	Certificates       []*x509.Certificate
+	HandshakeType                    []byte
+	Length                           []byte
+	CertificatesRequestContextLength []byte
+	CertificatesLength               []byte
+	Certificates                     []*x509.Certificate
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc8422.html
@@ -203,4 +205,11 @@ type KeyBlockTLS13 struct {
 	serverAppSecret       []byte
 	serverAppKey          []byte
 	serverAppIV           []byte
+}
+
+type EncryptedExtensions struct {
+	HandshakeType   []byte
+	Length          []byte
+	ExtensionLength []byte
+	TLSExtensions   []TLSExtensions
 }
