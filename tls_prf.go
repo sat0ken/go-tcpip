@@ -55,7 +55,7 @@ func prf(secret, label, clientServerRandom []byte, prfLength int) []byte {
 	return phash(secret, seed, prfLength)
 }
 
-func createVerifyData(premasterBytes MasterSecretInfo, labels, handhake_messages []byte) ([]byte, KeyBlock, []byte) {
+func createMasterandKeyblock(premasterBytes MasterSecretInfo) ([]byte, KeyBlock) {
 	var random []byte
 	random = append(random, premasterBytes.ClientRandom...)
 	random = append(random, premasterBytes.ServerRandom...)
@@ -82,89 +82,78 @@ func createVerifyData(premasterBytes MasterSecretInfo, labels, handhake_messages
 	fmt.Printf("ServerWriteKey : %x\n", keyblock.ClientWriteKey)
 	fmt.Printf("ServerWriteIV : %x\n", keyblock.ServerWriteIV)
 	fmt.Printf("ServerWriteKey : %x\n", keyblock.ServerWriteKey)
-	//fmt.Printf("ServerWriteKey : %x\n", keyblock.ServerWriteKey)
 
+	return master, keyblock
+}
+
+func createVerifyData(master, labels, handhake_messages []byte) []byte {
 	// これまでの全てのhandshake protocolでハッシュを計算する
 	hasher := sha256.New()
 	hasher.Write(handhake_messages)
 	messages := hasher.Sum(nil)
 
-	// 12byteのverify_dataにする
-	result := prf(master, labels, messages, 12)
-
-	return result, keyblock, master
+	// 12byteのverify_dataをreturn
+	return prf(master, labels, messages, 12)
 }
 
-func createServerVerifyData(master, serverFinMessage []byte) []byte {
-
-	// これまでの全てのhandshake protocolでハッシュを計算する
-	hasher := sha256.New()
-	hasher.Write(serverFinMessage)
-	messages := hasher.Sum(nil)
-
-	result := prf(master, ServerFinishedLabel, messages, 12)
-
-	return result
-}
-
-func createFinishTest() {
-
-	var handshake_message []byte
-	handshake_message = append(handshake_message, strtoByte(clientHellostr)...)
-	handshake_message = append(handshake_message, strtoByte(serverHellostr)...)
-	handshake_message = append(handshake_message, strtoByte(serverCertificatestr)...)
-	handshake_message = append(handshake_message, strtoByte(serveHelloDonestr)...)
-	handshake_message = append(handshake_message, strtoByte(clientKeyExchagestr)...)
-
-	var premasterByte []byte
-	premasterByte = append(premasterByte, TLS1_2...)
-	premasterByte = append(premasterByte, noRandomByte(46)...)
-
-	serverrandom := strtoByte("e7084907d95b64c862825b77b73d38020d080eb924a3b7c0444f574e47524401")
-
-	master := MasterSecretInfo{
-		PreMasterSecret: premasterByte,
-		ServerRandom:    serverrandom,
-		ClientRandom:    noRandomByte(32),
-	}
-
-	// 12byteのverify_dataを作成
-	verifyData, keyblock, _ := createVerifyData(master, CLientFinishedLabel, handshake_message)
-	fmt.Printf("client verifyData : %x\n", verifyData)
-
-	// finished messageを作成する、先頭にレコードヘッダを入れてからverify_dataを入れる
-	// 作成された16byteがplaintextとなり暗号化する
-	finMessage := []byte{HandshakeTypeFinished}
-	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
-	finMessage = append(finMessage, verifyData...)
-	fmt.Printf("finMessage : %x\n", finMessage)
-
-	handshake_message = append(handshake_message, finMessage...)
-	//serververifyData, _ := createVerifyData(master, ServerFinished, handshake_message)
-	//fmt.Printf("server verifyData : %x\n", createServerVerifyData(masterByte, handshake_message))
-
-	rheader := TLSRecordHeader{
-		ContentType:     []byte{ContentTypeHandShake},
-		ProtocolVersion: TLS1_2,
-		Length:          uintTo2byte(uint16(len(finMessage))),
-	}
-
-	tlsinfo := TLSInfo{
-		KeyBlock:          keyblock,
-		ClientSequenceNum: 0,
-	}
-
-	encryptClientMessage(toByteArr(rheader), finMessage, tlsinfo)
-}
+//func createFinishTest() {
+//
+//	var handshake_message []byte
+//	handshake_message = append(handshake_message, strtoByte(clientHellostr)...)
+//	handshake_message = append(handshake_message, strtoByte(serverHellostr)...)
+//	handshake_message = append(handshake_message, strtoByte(serverCertificatestr)...)
+//	handshake_message = append(handshake_message, strtoByte(serveHelloDonestr)...)
+//	handshake_message = append(handshake_message, strtoByte(clientKeyExchagestr)...)
+//
+//	var premasterByte []byte
+//	premasterByte = append(premasterByte, TLS1_2...)
+//	premasterByte = append(premasterByte, noRandomByte(46)...)
+//
+//	serverrandom := strtoByte("e7084907d95b64c862825b77b73d38020d080eb924a3b7c0444f574e47524401")
+//
+//	master := MasterSecretInfo{
+//		PreMasterSecret: premasterByte,
+//		ServerRandom:    serverrandom,
+//		ClientRandom:    noRandomByte(32),
+//	}
+//
+//	// 12byteのverify_dataを作成
+//	verifyData, keyblock, _ := createVerifyData(master, CLientFinishedLabel, handshake_message)
+//	fmt.Printf("client verifyData : %x\n", verifyData)
+//
+//	// finished messageを作成する、先頭にレコードヘッダを入れてからverify_dataを入れる
+//	// 作成された16byteがplaintextとなり暗号化する
+//	finMessage := []byte{HandshakeTypeFinished}
+//	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
+//	finMessage = append(finMessage, verifyData...)
+//	fmt.Printf("finMessage : %x\n", finMessage)
+//
+//	handshake_message = append(handshake_message, finMessage...)
+//	//serververifyData, _ := createVerifyData(master, ServerFinished, handshake_message)
+//	//fmt.Printf("server verifyData : %x\n", createServerVerifyData(masterByte, handshake_message))
+//
+//	rheader := TLSRecordHeader{
+//		ContentType:     []byte{ContentTypeHandShake},
+//		ProtocolVersion: TLS1_2,
+//		Length:          uintTo2byte(uint16(len(finMessage))),
+//	}
+//
+//	tlsinfo := TLSInfo{
+//		KeyBlock:          keyblock,
+//		ClientSequenceNum: 0,
+//	}
+//
+//	encryptClientMessage(toByteArr(rheader), finMessage, tlsinfo)
+//}
 
 func encryptClientMessage(header, plaintext []byte, tlsinfo TLSInfo) []byte {
 
-	record_seq := append(header, getNonce(tlsinfo.ClientSequenceNum)...)
+	record_seq := append(header, getNonce(tlsinfo.ClientSequenceNum, 8)...)
 
 	nonce := tlsinfo.KeyBlock.ClientWriteIV
-	nonce = append(nonce, getNonce(tlsinfo.ClientSequenceNum)...)
+	nonce = append(nonce, getNonce(tlsinfo.ClientSequenceNum, 8)...)
 
-	add := getNonce(tlsinfo.ClientSequenceNum)
+	add := getNonce(tlsinfo.ClientSequenceNum, 8)
 	add = append(add, header...)
 
 	block, _ := aes.NewCipher(tlsinfo.KeyBlock.ClientWriteKey)
@@ -197,13 +186,13 @@ func decryptServerMessage(finMessage []byte, tlsinfo TLSInfo, ctype int) []byte 
 	aesgcm, _ := cipher.NewGCM(block)
 
 	var add []byte
-	add = getNonce(tlsinfo.ClientSequenceNum)
+	add = getNonce(tlsinfo.ClientSequenceNum, 8)
 	add = append(add, byte(ctype))
 	add = append(add, TLS1_2...)
 	plainLength := len(ciphertext) - aesgcm.Overhead()
 	add = append(add, uintTo2byte(uint16(plainLength))...)
 
-	//fmt.Printf("nonce is : %x, ciphertext is %x, add is %x\n", nonce, ciphertext, add)
+	fmt.Printf("nonce is : %x, ciphertext is %x, add is %x\n", nonce, ciphertext, add)
 	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, add)
 	if err != nil {
 		panic(err.Error())
@@ -257,7 +246,7 @@ func decryptFinTest() {
 	block, _ := aes.NewCipher(keyblock.ServerWriteKey)
 	aesgcm, _ := cipher.NewGCM(block)
 
-	add := getNonce(0)
+	add := getNonce(0, 8)
 	plainLength := len(ciphertext) - aesgcm.Overhead()
 	add = append(add, []byte{0x16, 0x03, 0x03}...)
 	add = append(add, uintTo2byte(uint16(plainLength))...)

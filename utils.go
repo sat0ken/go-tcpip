@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/hex"
@@ -84,10 +85,23 @@ func noRandomByte(length int) []byte {
 	return b
 }
 
-func getNonce(i int) []byte {
-	b := make([]byte, 8)
+func getNonce(i, length int) []byte {
+	b := make([]byte, length)
 	binary.BigEndian.PutUint64(b, uint64(i))
 	return b
+}
+
+// TLS1.3用
+// https://tex2e.github.io/rfc-translater/html/rfc8446.html
+// シーケンス番号とwrite_ivをxorした値がnonceになる
+func getXORNonce(seqnum, writeiv []byte) []byte {
+	nonce := make([]byte, len(writeiv))
+	copy(nonce, writeiv)
+
+	for i, b := range seqnum {
+		nonce[4+i] ^= b
+	}
+	return nonce
 }
 
 func strtoByte(str string) []byte {
@@ -101,6 +115,13 @@ func readClientCertificate() tls.Certificate {
 		log.Fatal(err)
 	}
 	return cert
+}
+
+func writeHash(message []byte) []byte {
+	hasher := sha256.New()
+	hasher.Write(message)
+
+	return hasher.Sum(nil)
 }
 
 // zeroSource is an io.Reader that returns an unlimited number of zero bytes.

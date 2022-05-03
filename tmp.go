@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/k0kubun/pp/v3"
+	"golang.org/x/crypto/chacha20poly1305"
 	"log"
 	"os"
 	"syscall"
@@ -238,4 +239,36 @@ func _() {
 	//	log.Fatal(err)
 	//}
 	//fmt.Printf("TCP Connection Close is success!!\n")
+}
+
+func _() {
+	zero := noRandomByte(32)
+	early := hkdfExtract(zero, zero)
+	fmt.Printf("early is %x\n", early)
+
+	fmt.Printf("hash is %x\n", writeHash(nil))
+
+	serverkey := strtoByte("c298298bdfd2157b1561513be095caf3bd0e68dc9c31060e7a3af3cec1b03734")
+	ciphertext := strtoByte("e514a1d7a61af7a31ed4c757707072f73cef3dc4a160e1")
+	plaintext := strtoByte("08000002000016")
+	add := strtoByte("1703030017")
+	//dst := strtoByte("1703030017")
+
+	//block, _ := aes.NewCipher(serverkey)
+	//aesgcm, _ := cipher.NewGCM(block)
+
+	aead, err := chacha20poly1305.New(serverkey)
+	if err != nil {
+		log.Fatal(err)
+	}
+	nonce := noRandomByte(12)
+
+	encrypt := aead.Seal(nil, nonce, plaintext, add)
+	fmt.Printf("encrypt is %x\n", encrypt)
+
+	decrypt, err := aead.Open(nil, nonce, ciphertext, add)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("plaintext is %x\n", decrypt)
 }

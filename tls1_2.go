@@ -34,8 +34,8 @@ func NewTLSRecordHeader(ctype string, length uint16) []byte {
 	return b
 }
 
-func (*ClientHello) NewRSAClientHello() (clientrandom, clienthello []byte) {
-
+func (*ClientHello) NewClientHello(tlsversion []byte) (TLSInfo, []byte) {
+	var tlsinfo TLSInfo
 	handshake := ClientHello{
 		HandshakeType:      []byte{HandshakeTypeClientHello},
 		Length:             []byte{0x00, 0x00, 0x00},
@@ -45,25 +45,37 @@ func (*ClientHello) NewRSAClientHello() (clientrandom, clienthello []byte) {
 		SessionID:          noRandomByte(32),
 		CipherSuitesLength: []byte{0x00, 0x02},
 		// TLS_RSA_WITH_AES_128_GCM_SHA256
-		//CipherSuites:      []byte{0x00, 0x9c},
+		CipherSuites: []byte{0x13, 0x03},
 		// ECDHE-RSA-AES128-GCM-SHA256
-		CipherSuites:      []byte{0xC0, 0x2F},
+		//CipherSuites:      []byte{0xC0, 0x2F},
 		CompressionLength: []byte{0x01},
 		CompressionMethod: []byte{0x00},
-		Extensions:        setTLSExtenstions(),
+	}
+
+	if bytes.Equal(tlsversion, TLS1_2) {
+		handshake.Extensions = setTLSExtenstions()
+		tlsinfo.MasterSecretInfo.ClientRandom = handshake.Random
+	} else {
+		// TLS1.3のextensionをセット
+		handshake.Extensions, tlsinfo.ECDHEKeys = setTLS1_3Extension()
 	}
 
 	// Typeの1byteとLengthの3byteを合計から引く
 	handshake.Length = uintTo3byte(uint32(toByteLen(handshake) - 4))
+	// byteにする
+	handshakebyte := toByteArr(handshake)
 
 	var hello []byte
 	hello = append(hello, NewTLSRecordHeader("Handshake", toByteLen(handshake))...)
-	hello = append(hello, toByteArr(handshake)...)
+	hello = append(hello, handshakebyte...)
 
-	return handshake.Random, hello
+	// ClientHelloを保存しておく
+	tlsinfo.Handshakemessages = handshakebyte
+
+	return tlsinfo, hello
 }
 
-// GoでデフォルトでセットされるのTLS extensionを返す
+// GoでデフォルトでセットされるのTLS1.2のextensionを返す
 func setTLSExtenstions() []byte {
 	var tlsExtension []byte
 
@@ -182,8 +194,7 @@ func (*CertificateVerify) NewCertificateVerify(certs tls.Certificate, handshake_
 
 	rsaPrivatekey := certs.PrivateKey.(*rsa.PrivateKey)
 	signOpts := &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash}
-	signature, err := rsa.SignPSS(zeroSource{}, rsaPrivatekey, crypto.SHA256, messages, signOpts)
-	//signature, err := rsa.SignPKCS1v15(zeroSource{}, rsaPrivatekey, crypto.SHA256, messages)
+	signature, err := rsa.SignPSS(rand.Reader, rsaPrivatekey, crypto.SHA256, messages, signOpts)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -298,22 +309,54 @@ func genrateECDHESharedKey(serverPublicKey []byte) ECDHEKeys {
 	}
 }
 
-func parseTLSHandshake(packet []byte) interface{} {
+func parseTLSHandshake(packet []byte, version string) interface{} {
 	var i interface{}
 
 	switch packet[0] {
 	case HandshakeTypeServerHello:
-		i = ServerHello{
-			HandshakeType:     packet[0:1],
-			Length:            packet[1:4],
-			Version:           packet[4:6],
-			Random:            packet[6:38],
-			SessionID:         packet[38:39],
-			CipherSuites:      packet[39:41],
-			CompressionMethod: packet[41:42],
+		if version == "1.2" {
+			hello := ServerHello{
+				HandshakeType:     packet[0:1],
+				Length:            packet[1:4],
+				Version:           packet[4:6],
+				Random:            packet[6:38],
+				SessionID:         packet[38:39],
+				CipherSuites:      packet[39:41],
+				CompressionMethod: packet[41:42],
+			}
+			i = hello
+		} else {
+			hello := ServerHello{
+				HandshakeType:     packet[0:1],
+				Length:            packet[1:4],
+				Version:           packet[4:6],
+				Random:            packet[6:38],
+				SessionIDLength:   packet[38:39],
+				SessionID:         packet[39:71],
+				CipherSuites:      packet[71:73],
+				CompressionMethod: packet[73:74],
+				ExtensionLength:   packet[74:76],
+			}
+			// supported_versions
+			hello.TLSExtensions = append(hello.TLSExtensions, TLSExtensions{
+				Type:   packet[76:78],
+				Length: packet[78:80],
+				Value:  packet[80:82],
+			})
+			//key_share
+			hello.TLSExtensions = append(hello.TLSExtensions, TLSExtensions{
+				Type:   packet[82:84],
+				Length: packet[84:86],
+				Value: map[string]interface{}{
+					"Group":             packet[86:88],
+					"KeyExchangeLength": packet[88:90],
+					"KeyExchange":       packet[90:122],
+				},
+			})
+			i = hello
 		}
+
 		fmt.Printf("ServerHello : %+v\n", i)
-		//fmt.Printf("Cipher Suite is : %s\n", tls.CipherSuiteName(binary.BigEndian.Uint16(packet[39:41])))
 	case HandshakeTypeCertificate:
 		i = ServerCertificate{
 			HandshakeType:      packet[0:1],
@@ -364,7 +407,7 @@ func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 				ProtocolVersion: []byte{0x03, 0x03},
 				Length:          v[0:2],
 			}
-			tls := parseTLSHandshake(v[2:])
+			tls := parseTLSHandshake(v[2:], "1.2")
 			proto := TLSProtocol{
 				RHeader:           rHeader,
 				HandshakeProtocol: tls,
@@ -378,7 +421,7 @@ func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 				Length:          v[0:2],
 			}
 			//ServerHelloDoneの4byteだけ
-			tls := parseTLSHandshake(v[2:6])
+			tls := parseTLSHandshake(v[2:6], "1.2")
 			proto := TLSProtocol{
 				RHeader:           rHeader,
 				HandshakeProtocol: tls,

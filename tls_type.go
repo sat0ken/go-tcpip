@@ -22,12 +22,19 @@ const (
 )
 
 var TLS1_2 = []byte{0x03, 0x03}
+var TLS1_3 = []byte{0x03, 0x04}
 
 // 固定のラベル
 var MasterSecretLable = []byte(`master secret`)
 var KeyLable = []byte(`key expansion`)
 var CLientFinishedLabel = []byte(`client finished`)
 var ServerFinishedLabel = []byte(`server finished`)
+
+// TLS1.3
+var DerivedLabel = []byte(`derived`)
+var ClienthsTraffic = []byte(`c hs traffic`)
+var ServerhsTraffic = []byte(`s hs traffic`)
+var Finished = []byte(`finished`)
 
 // https://www.ipa.go.jp/security/rfc/RFC5246-AAJA.html
 type TLSRecordHeader struct {
@@ -55,9 +62,18 @@ type ServerHello struct {
 	Length            []byte
 	Version           []byte
 	Random            []byte
+	SessionIDLength   []byte
 	SessionID         []byte
 	CipherSuites      []byte
 	CompressionMethod []byte
+	ExtensionLength   []byte
+	TLSExtensions     []TLSExtensions
+}
+
+type TLSExtensions struct {
+	Type   []byte
+	Length []byte
+	Value  interface{}
 }
 
 type ServerCertificate struct {
@@ -154,8 +170,11 @@ type KeyBlock struct {
 }
 
 type TLSInfo struct {
+	State             string
+	Version           []byte
 	MasterSecretInfo  MasterSecretInfo
 	KeyBlock          KeyBlock
+	KeyBlockTLS13     KeyBlockTLS13
 	Handshakemessages []byte
 	ClientSequenceNum int
 	ECDHEKeys         ECDHEKeys
@@ -165,4 +184,23 @@ type ECDHEKeys struct {
 	privateKey []byte
 	publicKey  []byte
 	sharedKey  []byte
+}
+
+type KeyBlockTLS13 struct {
+	handshakeSecret       []byte
+	clientHandshakeSecret []byte
+	clientHandshakeKey    []byte
+	clientHandshakeIV     []byte
+	clientFinishedKey     []byte
+	serverHandshakeSecret []byte
+	serverHandshakeKey    []byte
+	serverHandshakeIV     []byte
+	serverFinishedKey     []byte
+	masterSecret          []byte
+	clientAppSecret       []byte
+	clientAppKey          []byte
+	clientAppIV           []byte
+	serverAppSecret       []byte
+	serverAppKey          []byte
+	serverAppIV           []byte
 }
