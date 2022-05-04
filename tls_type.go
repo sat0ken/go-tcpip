@@ -34,8 +34,10 @@ var ServerFinishedLabel = []byte(`server finished`)
 // TLS1.3
 var DerivedLabel = []byte(`derived`)
 var ClienthsTraffic = []byte(`c hs traffic`)
+var ClientapTraffic = []byte(`c ap traffic`)
 var ServerhsTraffic = []byte(`s hs traffic`)
-var Finished = []byte(`finished`)
+var ServerapTraffic = []byte(`s ap traffic`)
+var FinishedLabel = []byte(`finished`)
 
 // https://www.ipa.go.jp/security/rfc/RFC5246-AAJA.html
 type TLSRecordHeader struct {
@@ -172,14 +174,18 @@ type KeyBlock struct {
 }
 
 type TLSInfo struct {
-	State             string
-	Version           []byte
-	MasterSecretInfo  MasterSecretInfo
-	KeyBlock          KeyBlock
-	KeyBlockTLS13     KeyBlockTLS13
-	Handshakemessages []byte
-	ClientSequenceNum int
-	ECDHEKeys         ECDHEKeys
+	State              int
+	Version            []byte
+	MasterSecretInfo   MasterSecretInfo
+	KeyBlock           KeyBlock
+	KeyBlockTLS13      KeyBlockTLS13
+	Handshakemessages  []byte
+	ServerHandshakeSeq int
+	ServerAppSeq       int
+	ClientSequenceNum  int
+	ClientHandshakeSeq int
+	ClientAppSeq       int
+	ECDHEKeys          ECDHEKeys
 }
 
 type ECDHEKeys struct {
@@ -212,4 +218,10 @@ type EncryptedExtensions struct {
 	Length          []byte
 	ExtensionLength []byte
 	TLSExtensions   []TLSExtensions
+}
+
+type FinishedMessage struct {
+	HandshakeType []byte
+	Length        []byte
+	VerifyData    []byte
 }

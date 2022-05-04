@@ -21,7 +21,7 @@ func NewTLSRecordHeader(ctype string, length uint16) []byte {
 	switch ctype {
 	case "Handshake":
 		b = append(b, ContentTypeHandShake)
-	case "AppDada":
+	case "AppData":
 		b = append(b, ContentTypeApplicationData)
 	case "Alert":
 		b = append(b, ContentTypeAlert)
@@ -408,6 +408,7 @@ func parseTLSHandshake(packet []byte, version string) interface{} {
 			Length:        packet[1:4],
 		}
 		fmt.Printf("ServerHelloDone : %+v\n", i)
+	// TLS1.3用に追加
 	case HandshakeTypeEncryptedExtensions:
 		i = EncryptedExtensions{
 			HandshakeType:   packet[0:1],
@@ -415,6 +416,23 @@ func parseTLSHandshake(packet []byte, version string) interface{} {
 			ExtensionLength: packet[4:6],
 		}
 		fmt.Printf("EncryptedExtensions : %+v\n", i)
+	// TLS1.3用に追加
+	case HandshakeTypeCertificateVerify:
+		i = CertificateVerify{
+			HandshakeType:           packet[0:1],
+			Length:                  packet[1:4],
+			SignatureHashAlgorithms: packet[4:6],
+			SignatureLength:         packet[6:8],
+			Signature:               packet[8:],
+		}
+		fmt.Printf("CertificateVerify : %+v\n", i)
+	case HandshakeTypeFinished:
+		i = FinishedMessage{
+			HandshakeType: packet[0:1],
+			Length:        packet[1:4],
+			VerifyData:    packet[4:],
+		}
+		fmt.Printf("FinishedMessage : %+v\n", i)
 	}
 
 	return i
@@ -434,10 +452,10 @@ func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 				ProtocolVersion: []byte{0x03, 0x03},
 				Length:          v[0:2],
 			}
-			tls := parseTLSHandshake(v[2:], "1.2")
+			tlsproto := parseTLSHandshake(v[2:], "1.2")
 			proto := TLSProtocol{
 				RHeader:           rHeader,
-				HandshakeProtocol: tls,
+				HandshakeProtocol: tlsproto,
 			}
 			protocolsByte = append(protocolsByte, v[2:]...)
 			protocols = append(protocols, proto)

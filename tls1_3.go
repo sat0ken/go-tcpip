@@ -75,31 +75,66 @@ func setTLS1_3Extension() ([]byte, ECDHEKeys) {
 func decryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 	header := message[0:5]
 	chipertext := message[5:]
-	var key, iv []byte
+	var key, iv, nonce []byte
 
-	if tlsinfo.State == "Handshake" {
+	if tlsinfo.State == ContentTypeHandShake {
 		key = tlsinfo.KeyBlockTLS13.serverHandshakeKey
 		iv = tlsinfo.KeyBlockTLS13.serverHandshakeIV
+		nonce = getNonce(tlsinfo.ServerHandshakeSeq, 8)
 	} else {
 		key = tlsinfo.KeyBlockTLS13.serverAppKey
 		iv = tlsinfo.KeyBlockTLS13.serverAppIV
+		nonce = getNonce(tlsinfo.ServerAppSeq, 8)
 	}
 
-	//fmt.Printf("key is %x\n", key)
+	fmt.Printf("key is %x, iv is %x\n", key, iv)
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		log.Fatal(err)
 	}
-	nonce := getNonce(tlsinfo.ClientSequenceNum, 8)
+
 	xornonce := getXORNonce(nonce, iv)
 
-	fmt.Printf("decrypt now nonce is %x, cipertext is %x, add is %x\n", xornonce, chipertext, header)
+	fmt.Printf("decrypt nonce is %x xornonce is %x, plaintext is %x, add is %x\n", nonce, xornonce, chipertext, header)
 	plaintext, err := aead.Open(nil, xornonce, chipertext, header)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("plaintext is : %x\n", plaintext)
+	//fmt.Printf("plaintext is : %x\n", plaintext)
 	return plaintext
+}
+
+func encryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
+	var key, iv, nonce []byte
+
+	if tlsinfo.State == ContentTypeHandShake {
+		key = tlsinfo.KeyBlockTLS13.clientHandshakeKey
+		iv = tlsinfo.KeyBlockTLS13.clientHandshakeIV
+		nonce = getNonce(tlsinfo.ClientHandshakeSeq, 8)
+	} else {
+		key = tlsinfo.KeyBlockTLS13.clientAppKey
+		iv = tlsinfo.KeyBlockTLS13.clientAppIV
+		nonce = getNonce(tlsinfo.ClientAppSeq, 8)
+	}
+
+	fmt.Printf("key is %x, iv is %x\n", key, iv)
+
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	//nonce := getNonce(tlsinfo.ClientSequenceNum, 8)
+	xornonce := getXORNonce(nonce, iv)
+	header := strtoByte("170303")
+	totalLength := len(message) + 16
+
+	header = append(header, uintTo2byte(uint16(totalLength))...)
+
+	fmt.Printf("encrypt now nonce is %x xornonce is %x, plaintext is %x, add is %x\n", nonce, xornonce, message, header)
+	ciphertext := aead.Seal(header, xornonce, message, header)
+
+	//fmt.Printf("plaintext is : %x\n", plaintext)
+	return ciphertext
 }
 
 // HKDF-Extractは、上部からSalt引数を、左側からIKM引数を取り
@@ -138,7 +173,7 @@ func deriveSecret(secret, label, messages_byte []byte) []byte {
 	return hkdfExpandLabel(secret, label, messages_byte, 32)
 }
 
-func keyscheduleTLS13(sharedkey, handshake_messages []byte) KeyBlockTLS13 {
+func keyscheduleToMasterSecret(sharedkey, handshake_messages []byte) KeyBlockTLS13 {
 
 	zero := noRandomByte(32)
 	zerohash := writeHash(nil)
@@ -160,7 +195,7 @@ func keyscheduleTLS13(sharedkey, handshake_messages []byte) KeyBlockTLS13 {
 	fmt.Printf("chstraffic is : %x\n", chstraffic)
 
 	// Finished message用のキー
-	clientfinkey := deriveSecret(chstraffic, Finished, nil)
+	clientfinkey := deriveSecret(chstraffic, FinishedLabel, nil)
 	fmt.Printf("clientfinkey is : %x\n", clientfinkey)
 
 	// {client} derive secret "tls13 s hs traffic":
@@ -168,7 +203,7 @@ func keyscheduleTLS13(sharedkey, handshake_messages []byte) KeyBlockTLS13 {
 	fmt.Printf("shstraffic is : %x\n", shstraffic)
 
 	// Finished message用のキー
-	serverfinkey := deriveSecret(shstraffic, Finished, nil)
+	serverfinkey := deriveSecret(shstraffic, FinishedLabel, nil)
 	fmt.Printf("serverfinkey is : %x\n", serverfinkey)
 
 	derivedSecretFormaster := deriveSecret(handshake_secret, DerivedLabel, zerohash)
@@ -203,4 +238,26 @@ func keyscheduleTLS13(sharedkey, handshake_messages []byte) KeyBlockTLS13 {
 		serverFinishedKey:     serverfinkey,
 		masterSecret:          extractSecretMaster,
 	}
+}
+
+func keyscheduleToAppTraffic(tlsinfo TLSInfo) TLSInfo {
+	hash_messages := writeHash(tlsinfo.Handshakemessages)
+	fmt.Printf("hashed messages is %x\n", hash_messages)
+
+	// {client} derive secret "tls13 c ap traffic":
+	captraffic := deriveSecret(tlsinfo.KeyBlockTLS13.masterSecret, ClientapTraffic, hash_messages)
+	fmt.Printf("captraffic is : %x\n", captraffic)
+	saptraffic := deriveSecret(tlsinfo.KeyBlockTLS13.masterSecret, ServerapTraffic, hash_messages)
+	fmt.Printf("saptraffic is : %x\n", saptraffic)
+
+	// 7.3. トラフィックキーの計算, Application用
+	tlsinfo.KeyBlockTLS13.clientAppKey = hkdfExpandLabel(captraffic, []byte(`key`), strtoByte(""), 32)
+	tlsinfo.KeyBlockTLS13.clientAppIV = hkdfExpandLabel(captraffic, []byte(`iv`), strtoByte(""), 12)
+	fmt.Printf("clientAppKey and IV is : %x, %x\n", tlsinfo.KeyBlockTLS13.clientAppKey, tlsinfo.KeyBlockTLS13.clientAppIV)
+
+	tlsinfo.KeyBlockTLS13.serverAppKey = hkdfExpandLabel(saptraffic, []byte(`key`), strtoByte(""), 32)
+	tlsinfo.KeyBlockTLS13.serverAppIV = hkdfExpandLabel(saptraffic, []byte(`iv`), strtoByte(""), 12)
+	fmt.Printf("serverAppkey and IV is : %x, %x\n", tlsinfo.KeyBlockTLS13.serverAppKey, tlsinfo.KeyBlockTLS13.serverAppIV)
+
+	return tlsinfo
 }
