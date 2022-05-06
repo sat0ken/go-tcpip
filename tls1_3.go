@@ -13,7 +13,7 @@ import (
 	"log"
 )
 
-func genrateClientECDHESharedKey() ECDHEKeys {
+func genrateClientECDHEKey() ECDHEKeys {
 	// 秘密鍵となる32byteの乱数をセット
 	//clientPrivateKey := randomByte(curve25519.ScalarSize)
 	clientPrivateKey := noRandomByte(32)
@@ -28,7 +28,7 @@ func genrateClientECDHESharedKey() ECDHEKeys {
 }
 
 // golangのclientのをキャプチャしてそのままセットする
-func setTLS1_3Extension() ([]byte, ECDHEKeys) {
+func setTLS13Extension() ([]byte, ECDHEKeys) {
 	var tlsExtension []byte
 
 	// set length
@@ -59,7 +59,7 @@ func setTLS1_3Extension() ([]byte, ECDHEKeys) {
 	tlsExtension = append(tlsExtension, []byte{0x00, 0x2b, 0x00, 0x03, 0x02, 0x03, 0x04}...)
 
 	// 共通鍵を生成する
-	clientkey := genrateClientECDHESharedKey()
+	clientkey := genrateClientECDHEKey()
 
 	// key_share, DHEの公開鍵を送る
 	tlsExtension = append(tlsExtension, []byte{0x00, 0x33, 0x00, 0x26, 0x00, 0x24}...)
@@ -67,7 +67,7 @@ func setTLS1_3Extension() ([]byte, ECDHEKeys) {
 
 	// keyのLength = 32byte
 	tlsExtension = append(tlsExtension, []byte{0x00, 0x20}...)
-	// 共通鍵を追加
+	// 公開鍵を追加
 	tlsExtension = append(tlsExtension, clientkey.publicKey...)
 
 	return tlsExtension, clientkey
@@ -89,7 +89,7 @@ func decryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 		nonce = getNonce(tlsinfo.ServerAppSeq, 8)
 	}
 
-	fmt.Printf("key is %x, iv is %x\n", key, iv)
+	//fmt.Printf("key is %x, iv is %x\n", key, iv)
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		log.Fatal(err)
@@ -97,7 +97,7 @@ func decryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 
 	xornonce := getXORNonce(nonce, iv)
 
-	fmt.Printf("decrypt nonce is %x xornonce is %x, chipertext is %x, add is %x\n", nonce, xornonce, chipertext, header)
+	//fmt.Printf("decrypt nonce is %x xornonce is %x, chipertext is %x, add is %x\n", nonce, xornonce, chipertext, header)
 	plaintext, err := aead.Open(nil, xornonce, chipertext, header)
 	if err != nil {
 		log.Fatal(err)
@@ -109,11 +109,13 @@ func decryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 func encryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 	var key, iv, nonce []byte
 
+	// Finishedメッセージを送るとき
 	if tlsinfo.State == ContentTypeHandShake {
 		key = tlsinfo.KeyBlockTLS13.clientHandshakeKey
 		iv = tlsinfo.KeyBlockTLS13.clientHandshakeIV
 		nonce = getNonce(tlsinfo.ClientHandshakeSeq, 8)
 	} else {
+		// Application Dataを送る時
 		key = tlsinfo.KeyBlockTLS13.clientAppKey
 		iv = tlsinfo.KeyBlockTLS13.clientAppIV
 		nonce = getNonce(tlsinfo.ClientAppSeq, 8)
@@ -125,9 +127,12 @@ func encryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//nonce := getNonce(tlsinfo.ClientSequenceNum, 8)
+	// ivとnonceをxorのbit演算をする
+	// 5.3. レコードごとのノンス
+	// 2.埋め込まれたシーケンス番号は、静的なclient_write_ivまたはserver_write_iv（役割に応じて）とXORされます。
 	xornonce := getXORNonce(nonce, iv)
 	header := strtoByte("170303")
+	// 平文→暗号化したときのOverHeadを足す
 	totalLength := len(message) + 16
 
 	header = append(header, uintTo2byte(uint16(totalLength))...)
@@ -135,7 +140,6 @@ func encryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 	fmt.Printf("encrypt now nonce is %x xornonce is %x, plaintext is %x, add is %x\n", nonce, xornonce, message, header)
 	ciphertext := aead.Seal(header, xornonce, message, header)
 
-	//fmt.Printf("plaintext is : %x\n", plaintext)
 	return ciphertext
 }
 
@@ -178,6 +182,7 @@ func keyscheduleToMasterSecret(sharedkey, handshake_messages []byte) KeyBlockTLS
 
 	zero := noRandomByte(32)
 	zerohash := writeHash(nil)
+	// 0からearly secretを作成する
 	earlySecret := hkdfExtract(zero, zero)
 
 	// {client} derive secret for handshake "tls13 derived"
@@ -205,7 +210,7 @@ func keyscheduleToMasterSecret(sharedkey, handshake_messages []byte) KeyBlockTLS
 
 	// Finished message用のキー
 	serverfinkey := deriveSecret(shstraffic, FinishedLabel, nil)
-	//fmt.Printf("serverfinkey is : %x\n", serverfinkey)
+	fmt.Printf("serverfinkey is : %x\n", serverfinkey)
 
 	derivedSecretFormaster := deriveSecret(handshake_secret, DerivedLabel, zerohash)
 	fmt.Printf("derivedSecretFormaster is : %x\n", derivedSecretFormaster)
@@ -270,8 +275,11 @@ func verifyServerCertificate(pubkey *rsa.PublicKey, signature, handshake_message
 	hash_messages := writeHash(handshake_messages)
 
 	hasher := sha256.New()
+	// 64回繰り返されるオクテット32（0x20）で構成される文字列
 	hasher.Write(strtoByte(str0x20x64))
+	// コンテキスト文字列 = "TLS 1.3, server CertificateVerify"
 	hasher.Write(serverCertificateContextString)
+	// セパレータとして機能する単一の0バイト
 	hasher.Write([]byte{0x00})
 	hasher.Write(hash_messages)
 	signed := hasher.Sum(nil)

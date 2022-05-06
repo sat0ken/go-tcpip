@@ -57,7 +57,7 @@ func (*ClientHello) NewClientHello(tlsversion []byte) (TLSInfo, []byte) {
 		tlsinfo.MasterSecretInfo.ClientRandom = handshake.Random
 	} else {
 		// TLS1.3のextensionをセット
-		handshake.Extensions, tlsinfo.ECDHEKeys = setTLS1_3Extension()
+		handshake.Extensions, tlsinfo.ECDHEKeys = setTLS13Extension()
 	}
 
 	// Typeの1byteとLengthの3byteを合計から引く
@@ -235,7 +235,7 @@ func readCertificates(packet []byte) []*x509.Certificate {
 	// 読み込んだx509証明書を配列に入れる
 	length := sum3BytetoLength(packet[0:3])
 	b = packet[3 : length+3]
-	fmt.Printf("%x\n", b)
+	//fmt.Printf("%x\n", b)
 	cert, err := x509.ParseCertificate(b)
 	if err != nil {
 		log.Fatalf("ParseCertificate error : %s", err)
@@ -319,12 +319,12 @@ func genrateECDHESharedKey(serverPublicKey []byte) ECDHEKeys {
 	}
 }
 
-func parseTLSHandshake(packet []byte, version string) interface{} {
+func parseTLSHandshake(packet []byte, tlsversion []byte) interface{} {
 	var i interface{}
 
 	switch packet[0] {
 	case HandshakeTypeServerHello:
-		if version == "1.2" {
+		if bytes.Equal(tlsversion, TLS1_2) {
 			hello := ServerHello{
 				HandshakeType:     packet[0:1],
 				Length:            packet[1:4],
@@ -368,7 +368,7 @@ func parseTLSHandshake(packet []byte, version string) interface{} {
 
 		fmt.Printf("ServerHello : %+v\n", i)
 	case HandshakeTypeCertificate:
-		if version == "1.2" {
+		if bytes.Equal(tlsversion, TLS1_2) {
 			i = ServerCertificate{
 				HandshakeType:      packet[0:1],
 				Length:             packet[1:4],
@@ -468,7 +468,7 @@ func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 				ProtocolVersion: []byte{0x03, 0x03},
 				Length:          v[0:2],
 			}
-			tlsproto := parseTLSHandshake(v[2:], "1.2")
+			tlsproto := parseTLSHandshake(v[2:], TLS1_2)
 			proto := TLSProtocol{
 				RHeader:           rHeader,
 				HandshakeProtocol: tlsproto,
@@ -482,7 +482,7 @@ func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 				Length:          v[0:2],
 			}
 			//ServerHelloDoneの4byteだけ
-			tls := parseTLSHandshake(v[2:6], "1.2")
+			tls := parseTLSHandshake(v[2:6], TLS1_2)
 			proto := TLSProtocol{
 				RHeader:           rHeader,
 				HandshakeProtocol: tls,
