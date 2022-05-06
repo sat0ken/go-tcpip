@@ -10,6 +10,7 @@ const (
 	ContentTypeApplicationData       = 0x17
 	HandshakeTypeClientHello         = 0x01
 	HandshakeTypeServerHello         = 0x02
+	HandshakeTypeNewSessionTicket    = 0x04
 	HandshakeTypeEncryptedExtensions = 0x08
 	HandshakeTypeClientKeyExchange   = 0x10 //=16
 	HandshakeTypeCertificate         = 0x0b //=11
@@ -20,6 +21,9 @@ const (
 	HandshakeTypeChangeCipherSpec    = 0x14 //=20
 	HandshakeTypeFinished            = 0x14
 	CurveIDx25519                    = 0x1D
+
+	// 4.4.3. Certificate Verify
+	str0x20x64 = "20202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020"
 )
 
 var TLS1_2 = []byte{0x03, 0x03}
@@ -38,6 +42,10 @@ var ClientapTraffic = []byte(`c ap traffic`)
 var ServerhsTraffic = []byte(`s hs traffic`)
 var ServerapTraffic = []byte(`s ap traffic`)
 var FinishedLabel = []byte(`finished`)
+
+// 4.4.3. Certificate Verify
+//var str0x20x64 = []byte(`20202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020`)
+var serverCertificateContextString = []byte(`TLS 1.3, server CertificateVerify`)
 
 // https://www.ipa.go.jp/security/rfc/RFC5246-AAJA.html
 type TLSRecordHeader struct {
@@ -224,4 +232,17 @@ type FinishedMessage struct {
 	HandshakeType []byte
 	Length        []byte
 	VerifyData    []byte
+}
+
+type SessionTicket struct {
+	HandshakeType         []byte
+	Length                []byte
+	TicketLifeTime        []byte
+	TicketAgeAdd          []byte
+	TicketNonceLength     []byte
+	TicketNonce           []byte
+	TicketLength          []byte
+	Ticket                []byte
+	TicketExtensionLength []byte
+	TicketExtensions      []byte
 }

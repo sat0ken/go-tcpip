@@ -426,6 +426,7 @@ func parseTLSHandshake(packet []byte, version string) interface{} {
 			Signature:               packet[8:],
 		}
 		fmt.Printf("CertificateVerify : %+v\n", i)
+	// TLS1.3用に追加
 	case HandshakeTypeFinished:
 		i = FinishedMessage{
 			HandshakeType: packet[0:1],
@@ -433,6 +434,21 @@ func parseTLSHandshake(packet []byte, version string) interface{} {
 			VerifyData:    packet[4:],
 		}
 		fmt.Printf("FinishedMessage : %+v\n", i)
+	// TLS1.3用に追加
+	case HandshakeTypeNewSessionTicket:
+		ticketLength := binary.BigEndian.Uint16(packet[21:23]) + 23
+		i = SessionTicket{
+			HandshakeType:     packet[0:1],
+			Length:            packet[1:4],
+			TicketLifeTime:    packet[4:8],
+			TicketAgeAdd:      packet[8:12],
+			TicketNonceLength: packet[12:13],
+			TicketNonce:       packet[13:21],
+			TicketLength:      packet[21:23],
+			Ticket:            packet[23:ticketLength],
+			TicketExtensions:  packet[ticketLength:],
+		}
+		fmt.Printf("SessionTicket : %+v\n", i)
 	}
 
 	return i

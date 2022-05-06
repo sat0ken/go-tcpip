@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/tls"
 	"fmt"
@@ -95,7 +97,7 @@ func decryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 
 	xornonce := getXORNonce(nonce, iv)
 
-	fmt.Printf("decrypt nonce is %x xornonce is %x, plaintext is %x, add is %x\n", nonce, xornonce, chipertext, header)
+	fmt.Printf("decrypt nonce is %x xornonce is %x, chipertext is %x, add is %x\n", nonce, xornonce, chipertext, header)
 	plaintext, err := aead.Open(nil, xornonce, chipertext, header)
 	if err != nil {
 		log.Fatal(err)
@@ -153,18 +155,17 @@ func hkdfExpand(secret, hkdflabel []byte, length int) []byte {
 }
 
 func hkdfExpandLabel(secret, label, ctx []byte, length int) []byte {
-
+	// labelを作成
 	tlslabel := []byte(`tls13 `)
 	tlslabel = append(tlslabel, label...)
 
+	// lengthをセット
 	hkdflabel := uintTo2byte(uint16(length))
 	hkdflabel = append(hkdflabel, byte(len(tlslabel)))
 	hkdflabel = append(hkdflabel, tlslabel...)
 
 	hkdflabel = append(hkdflabel, byte(len(ctx)))
 	hkdflabel = append(hkdflabel, ctx...)
-
-	//fmt.Printf("hkdflabel is : %x\n", hkdflabel)
 
 	return hkdfExpand(secret, hkdflabel, length)
 }
@@ -192,19 +193,19 @@ func keyscheduleToMasterSecret(sharedkey, handshake_messages []byte) KeyBlockTLS
 
 	// {client} derive secret "tls13 c hs traffic":
 	chstraffic := deriveSecret(handshake_secret, ClienthsTraffic, hash_messages)
-	fmt.Printf("chstraffic is : %x\n", chstraffic)
+	fmt.Printf("CLIENT_HANDSHAKE_TRAFFIC_SECRET %x %x\n", zero, chstraffic)
 
 	// Finished message用のキー
 	clientfinkey := deriveSecret(chstraffic, FinishedLabel, nil)
-	fmt.Printf("clientfinkey is : %x\n", clientfinkey)
+	//fmt.Printf("clientfinkey is : %x\n", clientfinkey)
 
 	// {client} derive secret "tls13 s hs traffic":
 	shstraffic := deriveSecret(handshake_secret, ServerhsTraffic, hash_messages)
-	fmt.Printf("shstraffic is : %x\n", shstraffic)
+	fmt.Printf("SERVER_HANDSHAKE_TRAFFIC_SECRET %x %x\n", zero, shstraffic)
 
 	// Finished message用のキー
 	serverfinkey := deriveSecret(shstraffic, FinishedLabel, nil)
-	fmt.Printf("serverfinkey is : %x\n", serverfinkey)
+	//fmt.Printf("serverfinkey is : %x\n", serverfinkey)
 
 	derivedSecretFormaster := deriveSecret(handshake_secret, DerivedLabel, zerohash)
 	fmt.Printf("derivedSecretFormaster is : %x\n", derivedSecretFormaster)
@@ -214,16 +215,16 @@ func keyscheduleToMasterSecret(sharedkey, handshake_messages []byte) KeyBlockTLS
 
 	// {client} derive write traffic keys for handshake data from server hs traffic:
 	// 7.3. トラフィックキーの計算
-	clienttraffickey := hkdfExpandLabel(chstraffic, []byte(`key`), strtoByte(""), 32)
+	clienttraffickey := hkdfExpandLabel(chstraffic, []byte(`key`), nil, 32)
 	fmt.Printf("client traffic key is : %x\n", clienttraffickey)
 
-	clienttrafficiv := hkdfExpandLabel(chstraffic, []byte(`iv`), strtoByte(""), 12)
+	clienttrafficiv := hkdfExpandLabel(chstraffic, []byte(`iv`), nil, 12)
 	fmt.Printf("client traffic iv is : %x\n", clienttrafficiv)
 
-	servertraffickey := hkdfExpandLabel(shstraffic, []byte(`key`), strtoByte(""), 32)
+	servertraffickey := hkdfExpandLabel(shstraffic, []byte(`key`), nil, 32)
 	fmt.Printf("server traffic key is : %x\n", servertraffickey)
 
-	servertrafficiv := hkdfExpandLabel(shstraffic, []byte(`iv`), strtoByte(""), 12)
+	servertrafficiv := hkdfExpandLabel(shstraffic, []byte(`iv`), nil, 12)
 	fmt.Printf("server traffic iv is : %x\n", servertrafficiv)
 
 	return KeyBlockTLS13{
@@ -244,20 +245,42 @@ func keyscheduleToAppTraffic(tlsinfo TLSInfo) TLSInfo {
 	hash_messages := writeHash(tlsinfo.Handshakemessages)
 	fmt.Printf("hashed messages is %x\n", hash_messages)
 
+	zero := noRandomByte(32)
+
 	// {client} derive secret "tls13 c ap traffic":
 	captraffic := deriveSecret(tlsinfo.KeyBlockTLS13.masterSecret, ClientapTraffic, hash_messages)
-	fmt.Printf("captraffic is : %x\n", captraffic)
+	fmt.Printf("CLIENT_TRAFFIC_SECRET_0 %x %x\n", zero, captraffic)
 	saptraffic := deriveSecret(tlsinfo.KeyBlockTLS13.masterSecret, ServerapTraffic, hash_messages)
-	fmt.Printf("saptraffic is : %x\n", saptraffic)
+	fmt.Printf("SERVER_TRAFFIC_SECRET_0 %x %x\n", zero, saptraffic)
 
 	// 7.3. トラフィックキーの計算, Application用
-	tlsinfo.KeyBlockTLS13.clientAppKey = hkdfExpandLabel(captraffic, []byte(`key`), strtoByte(""), 32)
-	tlsinfo.KeyBlockTLS13.clientAppIV = hkdfExpandLabel(captraffic, []byte(`iv`), strtoByte(""), 12)
+	tlsinfo.KeyBlockTLS13.clientAppKey = hkdfExpandLabel(captraffic, []byte(`key`), nil, 32)
+	tlsinfo.KeyBlockTLS13.clientAppIV = hkdfExpandLabel(captraffic, []byte(`iv`), nil, 12)
 	fmt.Printf("clientAppKey and IV is : %x, %x\n", tlsinfo.KeyBlockTLS13.clientAppKey, tlsinfo.KeyBlockTLS13.clientAppIV)
 
-	tlsinfo.KeyBlockTLS13.serverAppKey = hkdfExpandLabel(saptraffic, []byte(`key`), strtoByte(""), 32)
-	tlsinfo.KeyBlockTLS13.serverAppIV = hkdfExpandLabel(saptraffic, []byte(`iv`), strtoByte(""), 12)
+	tlsinfo.KeyBlockTLS13.serverAppKey = hkdfExpandLabel(saptraffic, []byte(`key`), nil, 32)
+	tlsinfo.KeyBlockTLS13.serverAppIV = hkdfExpandLabel(saptraffic, []byte(`iv`), nil, 12)
 	fmt.Printf("serverAppkey and IV is : %x, %x\n", tlsinfo.KeyBlockTLS13.serverAppKey, tlsinfo.KeyBlockTLS13.serverAppIV)
 
 	return tlsinfo
+}
+
+// 4.4.3. Certificate Verify
+func verifyServerCertificate(pubkey *rsa.PublicKey, signature, handshake_messages []byte) {
+	hash_messages := writeHash(handshake_messages)
+
+	hasher := sha256.New()
+	hasher.Write(strtoByte(str0x20x64))
+	hasher.Write(serverCertificateContextString)
+	hasher.Write([]byte{0x00})
+	hasher.Write(hash_messages)
+	signed := hasher.Sum(nil)
+	fmt.Printf("hash_messages is %x, signed is %x\n", hash_messages, signed)
+
+	signOpts := &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash}
+	err := rsa.VerifyPSS(pubkey, crypto.SHA256, signed, signature, signOpts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Server Certificate Verify is OK !!")
 }
