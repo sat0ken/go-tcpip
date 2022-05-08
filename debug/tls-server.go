@@ -7,18 +7,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"tcpip/debug/utils"
 )
-
-// zeroSource is an io.Reader that returns an unlimited number of zero bytes.
-type zeroSource struct{}
-
-func (zeroSource) Read(b []byte) (n int, err error) {
-	for i := range b {
-		b[i] = 0
-	}
-
-	return len(b), nil
-}
 
 // https://gist.github.com/denji/12b3a568f092ab951456
 func main() {
@@ -30,7 +20,7 @@ func main() {
 	// https://pkg.go.dev/crypto/tls#Config
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		Rand:         zeroSource{}, // for example only; don't do this.
+		Rand:         utils.ZeroSource{}, // for example only; don't do this.
 		MinVersion:   tls.VersionTLS13,
 		MaxVersion:   tls.VersionTLS13,
 		CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_GCM_SHA256},

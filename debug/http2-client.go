@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"golang.org/x/net/http2"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -14,18 +15,17 @@ import (
 func main() {
 
 	w := os.Stdout
-	tr := &http.Transport{
+	tr := &http2.Transport{
 		TLSClientConfig: &tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			MaxVersion:   tls.VersionTLS12,
+			MinVersion:   tls.VersionTLS13,
+			MaxVersion:   tls.VersionTLS13,
 			Rand:         utils.ZeroSource{},
 			KeyLogWriter: w,
-			CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_GCM_SHA256},
 		},
 	}
 
 	client := &http.Client{Transport: tr}
-	resp, _ := client.Get("https://127.0.0.1:8443")
+	resp, _ := client.Get("https://127.0.0.1:18443")
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

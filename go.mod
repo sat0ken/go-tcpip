@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/k0kubun/pp/v3 v3.1.0
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
+	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
 )
 
 require (

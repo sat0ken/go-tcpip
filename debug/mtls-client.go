@@ -5,17 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	"tcpip/debug/utils"
 )
-
-type zeroSource8 struct{}
-
-func (zeroSource8) Read(b []byte) (n int, err error) {
-	for i := range b {
-		b[i] = 0
-	}
-
-	return len(b), nil
-}
 
 func main() {
 	cert, err := tls.LoadX509KeyPair("client.pem", "client-key.pem")
@@ -28,7 +20,7 @@ func main() {
 		Certificates: []tls.Certificate{cert},
 		MinVersion:   tls.VersionTLS12,
 		MaxVersion:   tls.VersionTLS12,
-		Rand:         zeroSource8{},
+		Rand:         utils.ZeroSource{},
 		KeyLogWriter: w,
 		// 楕円曲線のタイプをP256に設定
 		// CurvePreferences: []tls.CurveID{tls.CurveP256, tls.CurveID(tls2.X25519)},

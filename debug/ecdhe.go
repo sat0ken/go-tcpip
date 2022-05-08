@@ -6,24 +6,15 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
-type zeroSource5 struct{}
-
-func (zeroSource5) Read(b []byte) (n int, err error) {
-	for i := range b {
-		b[i] = 0
-	}
-
-	return len(b), nil
-}
-
 func randomByte(num int) []byte {
 	b := make([]byte, num)
 	rand.Read(b)
 	return b
+
 }
 
 // https://billatnapier.medium.com/little-protects-you-on-line-like-ecdh-lets-go-create-it-a14188eabded
-func main() {
+func _() {
 	//pkey_bob, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	//pkey_alice, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	//
