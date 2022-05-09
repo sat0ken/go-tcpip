@@ -58,7 +58,7 @@ func __() {
 	//	fmt.Println(v[2])
 	//	fmt.Printf("%x\n", v)
 	//}
-	tlsprotcols, _ := parseTLSPacket(strtoByte(tlspacketstr))
+	tlsprotcols, _ := ParseTLSPacket(strtoByte(tlspacketstr))
 	for _, v := range tlsprotcols {
 		switch proto := v.HandshakeProtocol.(type) {
 		case ServerKeyExchange:
@@ -66,7 +66,7 @@ func __() {
 			// https://cs.opensource.google/go/go/+/master:src/crypto/tls/common.go;drc=2580d0e08d5e9f979b943758d3c49877fb2324cb;l=118
 			// 楕円曲線Curve25519だけサポートする
 			if proto.ECDiffieHellmanServerParams.NamedCurve[1] == CurveIDx25519 {
-				b := genrateECDHESharedKey(proto.ECDiffieHellmanServerParams.Pubkey)
+				b := GenrateECDHESharedKey(proto.ECDiffieHellmanServerParams.Pubkey)
 				var clientKeyExchange ClientKeyExchange
 				var clientKeyExchangeBytes []byte
 
