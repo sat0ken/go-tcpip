@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"fmt"
@@ -33,7 +33,7 @@ func NewHttpGetRequest(url, host string) HttpRequest {
 
 // https://www.infraexpert.com/study/tcpip16.html
 // HTTPリクエストをbyteにして返す
-func (*HttpRequest) reqtoByteArr(request HttpRequest) []byte {
+func (*HttpRequest) ReqtoByteArr(request HttpRequest) []byte {
 	var packet []byte
 	var CRLF = []byte{0x0d, 0x0a}
 

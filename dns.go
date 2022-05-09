@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"fmt"
@@ -73,17 +73,17 @@ func sendDNS() {
 		log.Fatalf("getLocalIpAddr err : %v", err)
 	}
 
-	ipheader := NewIPHeader(localif.LocalIpAddr, iptobyte("192.168.0.254"), "UDP")
+	ipheader := NewIPHeader(localif.LocalIpAddr, Iptobyte("192.168.0.254"), "UDP")
 
 	//var udp UDPHeader
-	udpheader := NewUDPHeader(uintTo2byte(42279), uintTo2byte(53))
+	udpheader := NewUDPHeader(UintTo2byte(42279), UintTo2byte(53))
 	dnspacket := NewDNSQuery(".github.com")
 	udpdata := toByteArr(dnspacket)
 
 	fmt.Printf("dns packet : %s\n", printByteArr(udpdata))
 
-	ipheader.TotalPacketLength = uintTo2byte(uint16(20) + toByteLen(udpheader) + uint16(len(udpdata)))
-	udpheader.PacketLenth = uintTo2byte(toByteLen(udpheader) + uint16(len(udpdata)))
+	ipheader.TotalPacketLength = UintTo2byte(uint16(20) + toByteLen(udpheader) + uint16(len(udpdata)))
+	udpheader.PacketLenth = UintTo2byte(toByteLen(udpheader) + uint16(len(udpdata)))
 
 	// IPヘッダのチェックサムを計算する
 	ipsum := sumByteArr(toByteArr(ipheader))

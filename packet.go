@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 type RawPacket struct {
 	ethPacket EthernetFrame
@@ -68,12 +68,12 @@ func NewPacket(tcpip TCPIP) []byte {
 	var ethernet EthernetFrame
 	ethernet = NewEthernet(localmac, nginxmac, "IPv4")
 
-	localIP := iptobyte(tcpip.DestIP)
+	localIP := Iptobyte(tcpip.DestIP)
 	var ipheader IPHeader
 	ipheader = NewIPHeader(localIP, localIP, "TCP")
 
 	var tcpheader TCPHeader
-	tcpheader = NewTCPHeader(uintTo2byte(42279), uintTo2byte(tcpip.DestPort), tcpip.TcpFlag)
+	tcpheader = NewTCPHeader(UintTo2byte(42279), UintTo2byte(tcpip.DestPort), tcpip.TcpFlag)
 
 	if tcpip.TcpFlag == "ACK" || tcpip.TcpFlag == "PSHACK" || tcpip.TcpFlag == "FINACK" {
 		tcpheader.SequenceNumber = tcpip.SeqNumber
@@ -84,9 +84,9 @@ func NewPacket(tcpip TCPIP) []byte {
 
 	// IP=20byte + tcpヘッダの長さ + tcpオプションの長さ + dataの長さ
 	if tcpip.TcpFlag == "PSHACK" {
-		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader) + uint16(len(tcpip.Data)))
+		ipheader.TotalPacketLength = UintTo2byte(20 + toByteLen(tcpheader) + uint16(len(tcpip.Data)))
 	} else {
-		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader)) // + toByteLen(tcpOption))
+		ipheader.TotalPacketLength = UintTo2byte(20 + toByteLen(tcpheader)) // + toByteLen(tcpOption))
 	}
 	ipsum := sumByteArr(toByteArr(ipheader))
 	ipheader.HeaderCheckSum = checksum(ipsum)

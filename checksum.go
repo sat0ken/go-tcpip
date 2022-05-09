@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"encoding/binary"
@@ -79,13 +79,13 @@ func toByteLen(value interface{}) uint16 {
 	return uint16(len(arr))
 }
 
-func uintTo2byte(data uint16) []byte {
+func UintTo2byte(data uint16) []byte {
 	b := make([]byte, 2)
 	binary.BigEndian.PutUint16(b, data)
 	return b
 }
 
-func uintTo3byte(data uint32) []byte {
+func UintTo3byte(data uint32) []byte {
 	b := make([]byte, 4)
 	binary.BigEndian.PutUint32(b, data)
 	return b[1:]
@@ -95,5 +95,5 @@ func checksum(sum uint) []byte {
 	// https://el.jibun.atmarkit.co.jp/hiro/2013/07/tcp-f933.html
 	// 22DA6 - 20000 + 2 = 2DA8となり、2DA8をビット反転
 	val := sum - (sum>>16)<<16 + (sum >> 16) ^ 0xffff
-	return uintTo2byte(uint16(val))
+	return UintTo2byte(uint16(val))
 }

@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"crypto"
@@ -22,8 +22,8 @@ func genrateClientECDHEKey() ECDHEKeys {
 	clientPublicKey, _ := curve25519.X25519(clientPrivateKey, curve25519.Basepoint)
 
 	return ECDHEKeys{
-		privateKey: clientPrivateKey,
-		publicKey:  clientPublicKey,
+		PrivateKey: clientPrivateKey,
+		PublicKey:  clientPublicKey,
 	}
 }
 
@@ -63,18 +63,18 @@ func setTLS13Extension() ([]byte, ECDHEKeys) {
 
 	// key_share, DHEの公開鍵を送る
 	tlsExtension = append(tlsExtension, []byte{0x00, 0x33, 0x00, 0x26, 0x00, 0x24}...)
-	tlsExtension = append(tlsExtension, uintTo2byte(uint16(tls.X25519))...)
+	tlsExtension = append(tlsExtension, UintTo2byte(uint16(tls.X25519))...)
 
 	// keyのLength = 32byte
 	tlsExtension = append(tlsExtension, []byte{0x00, 0x20}...)
 	// 公開鍵を追加
-	tlsExtension = append(tlsExtension, clientkey.publicKey...)
+	tlsExtension = append(tlsExtension, clientkey.PublicKey...)
 
 	return tlsExtension, clientkey
 }
 
 // https://pkg.go.dev/golang.org/x/crypto@v0.0.0-20220411220226-7b82a4e95df4/chacha20poly1305
-func decryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
+func DecryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 	header := message[0:5]
 	chipertext := message[5:]
 	var key, iv, nonce []byte
@@ -106,7 +106,7 @@ func decryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 	return plaintext
 }
 
-func encryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
+func EncryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 	var key, iv, nonce []byte
 
 	// Finishedメッセージを送るとき
@@ -135,7 +135,7 @@ func encryptChacha20(message []byte, tlsinfo TLSInfo) []byte {
 	// 平文→暗号化したときのOverHeadを足す
 	totalLength := len(message) + 16
 
-	header = append(header, uintTo2byte(uint16(totalLength))...)
+	header = append(header, UintTo2byte(uint16(totalLength))...)
 
 	fmt.Printf("encrypt now nonce is %x xornonce is %x, plaintext is %x, add is %x\n", nonce, xornonce, message, header)
 	ciphertext := aead.Seal(header, xornonce, message, header)
@@ -164,7 +164,7 @@ func hkdfExpandLabel(secret, label, ctx []byte, length int) []byte {
 	tlslabel = append(tlslabel, label...)
 
 	// lengthをセット
-	hkdflabel := uintTo2byte(uint16(length))
+	hkdflabel := UintTo2byte(uint16(length))
 	hkdflabel = append(hkdflabel, byte(len(tlslabel)))
 	hkdflabel = append(hkdflabel, tlslabel...)
 
@@ -178,10 +178,10 @@ func deriveSecret(secret, label, messages_byte []byte) []byte {
 	return hkdfExpandLabel(secret, label, messages_byte, 32)
 }
 
-func keyscheduleToMasterSecret(sharedkey, handshake_messages []byte) KeyBlockTLS13 {
+func KeyscheduleToMasterSecret(sharedkey, handshake_messages []byte) KeyBlockTLS13 {
 
 	zero := noRandomByte(32)
-	zerohash := writeHash(nil)
+	zerohash := WriteHash(nil)
 	// 0からearly secretを作成する
 	earlySecret := hkdfExtract(zero, zero)
 
@@ -193,7 +193,7 @@ func keyscheduleToMasterSecret(sharedkey, handshake_messages []byte) KeyBlockTLS
 	handshake_secret := hkdfExtract(sharedkey, derivedSecretForhs)
 	fmt.Printf("handshake_secret is : %x\n", handshake_secret)
 
-	hash_messages := writeHash(handshake_messages)
+	hash_messages := WriteHash(handshake_messages)
 	fmt.Printf("hashed messages is %x\n", hash_messages)
 
 	// {client} derive secret "tls13 c hs traffic":
@@ -237,17 +237,17 @@ func keyscheduleToMasterSecret(sharedkey, handshake_messages []byte) KeyBlockTLS
 		clientHandshakeSecret: chstraffic,
 		clientHandshakeKey:    clienttraffickey,
 		clientHandshakeIV:     clienttrafficiv,
-		clientFinishedKey:     clientfinkey,
+		ClientFinishedKey:     clientfinkey,
 		serverHandshakeSecret: shstraffic,
 		serverHandshakeKey:    servertraffickey,
 		serverHandshakeIV:     servertrafficiv,
-		serverFinishedKey:     serverfinkey,
+		ServerFinishedKey:     serverfinkey,
 		masterSecret:          extractSecretMaster,
 	}
 }
 
-func keyscheduleToAppTraffic(tlsinfo TLSInfo) TLSInfo {
-	hash_messages := writeHash(tlsinfo.Handshakemessages)
+func KeyscheduleToAppTraffic(tlsinfo TLSInfo) TLSInfo {
+	hash_messages := WriteHash(tlsinfo.Handshakemessages)
 	fmt.Printf("hashed messages is %x\n", hash_messages)
 
 	zero := noRandomByte(32)
@@ -271,8 +271,8 @@ func keyscheduleToAppTraffic(tlsinfo TLSInfo) TLSInfo {
 }
 
 // 4.4.3. Certificate Verify
-func verifyServerCertificate(pubkey *rsa.PublicKey, signature, handshake_messages []byte) {
-	hash_messages := writeHash(handshake_messages)
+func VerifyServerCertificate(pubkey *rsa.PublicKey, signature, handshake_messages []byte) {
+	hash_messages := WriteHash(handshake_messages)
 
 	hasher := sha256.New()
 	// 64回繰り返されるオクテット32（0x20）で構成される文字列

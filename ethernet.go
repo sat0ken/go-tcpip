@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 var IPv4 = []byte{0x08, 0x00}
 var ARP = []byte{0x08, 0x06}

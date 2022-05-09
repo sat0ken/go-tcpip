@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"fmt"
@@ -29,9 +29,9 @@ func sendArpICMP(destip string) {
 	// ICMPパケットを作る
 	icmpPacket := NewICMP()
 	// IPヘッダを作る
-	header := NewIPHeader(localif.LocalIpAddr, iptobyte(destip), "IP")
+	header := NewIPHeader(localif.LocalIpAddr, Iptobyte(destip), "IP")
 	// IPヘッダの長さとICMPパケットの長さの合計をIPヘッダのLengthにセットする
-	header.TotalPacketLength = uintTo2byte(toByteLen(header) + toByteLen(icmpPacket))
+	header.TotalPacketLength = UintTo2byte(toByteLen(header) + toByteLen(icmpPacket))
 
 	// チェックサムを計算する
 	ipsum := sumByteArr(toByteArr(header))

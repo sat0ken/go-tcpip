@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"crypto/x509"
@@ -197,9 +197,9 @@ type TLSInfo struct {
 }
 
 type ECDHEKeys struct {
-	privateKey []byte
-	publicKey  []byte
-	sharedKey  []byte
+	PrivateKey []byte
+	PublicKey  []byte
+	SharedKey  []byte
 }
 
 type KeyBlockTLS13 struct {
@@ -207,11 +207,11 @@ type KeyBlockTLS13 struct {
 	clientHandshakeSecret []byte
 	clientHandshakeKey    []byte
 	clientHandshakeIV     []byte
-	clientFinishedKey     []byte
+	ClientFinishedKey     []byte
 	serverHandshakeSecret []byte
 	serverHandshakeKey    []byte
 	serverHandshakeIV     []byte
-	serverFinishedKey     []byte
+	ServerFinishedKey     []byte
 	masterSecret          []byte
 	clientAppSecret       []byte
 	clientAppKey          []byte

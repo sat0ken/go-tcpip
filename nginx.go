@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 func synack_finack() {
-	dest := LOCALIP
+	dest := "127.0.0.1"
 	var port uint16 = 10443
 
 	syn := TCPIP{
@@ -77,7 +77,7 @@ func nginx() {
 		TcpFlag:   "PSHACK",
 		SeqNumber: ack.SeqNumber,
 		AckNumber: ack.AckNumber,
-		Data:      req.reqtoByteArr(req),
+		Data:      req.ReqtoByteArr(req),
 	}
 	sendNginx(sendfd, pshack)
 }

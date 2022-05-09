@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"bytes"
@@ -70,7 +70,7 @@ func __() {
 				var clientKeyExchange ClientKeyExchange
 				var clientKeyExchangeBytes []byte
 
-				clientKeyExchangeBytes = clientKeyExchange.NewClientKeyECDHAExchange(b.publicKey)
+				clientKeyExchangeBytes = clientKeyExchange.NewClientKeyECDHAExchange(b.PublicKey)
 				fmt.Printf("%x\n", clientKeyExchangeBytes)
 			}
 		}
@@ -155,8 +155,8 @@ func _() {
 
 func _() {
 
-	dest := LOCALIP
-	var port uint16 = LOCALPORT
+	dest := "127.0.0.1"
+	var port uint16 = 10443
 
 	syn := TCPIP{
 		DestIP:   dest,
@@ -212,12 +212,12 @@ func _() {
 		}
 		// IPヘッダをUnpackする
 		ip := parseIP(recvBuf[0:20])
-		if bytes.Equal(ip.Protocol, []byte{0x06}) && bytes.Equal(ip.SourceIPAddr, iptobyte(dest)) {
+		if bytes.Equal(ip.Protocol, []byte{0x06}) && bytes.Equal(ip.SourceIPAddr, Iptobyte(dest)) {
 			recvtcp := parseTCP(recvBuf[20:])
-			if bytes.Equal(recvtcp.ControlFlags, []byte{ACK}) && bytes.Equal(recvtcp.SourcePort, uintTo2byte(LOCALPORT)) {
+			if bytes.Equal(recvtcp.ControlFlags, []byte{ACK}) && bytes.Equal(recvtcp.SourcePort, UintTo2byte(port)) {
 				//pp.Println(recvtcp)
 				fmt.Printf("Recv Finished message ACK from %s\n", dest)
-			} else if bytes.Equal(recvtcp.ControlFlags, []byte{PSHACK}) && bytes.Equal(recvtcp.SourcePort, uintTo2byte(LOCALPORT)) {
+			} else if bytes.Equal(recvtcp.ControlFlags, []byte{PSHACK}) && bytes.Equal(recvtcp.SourcePort, UintTo2byte(port)) {
 				fmt.Printf("Recv Finished message PSHACK from %s\n", dest)
 				pp.Println(recvtcp)
 			}
@@ -246,7 +246,7 @@ func _() {
 	early := hkdfExtract(zero, zero)
 	fmt.Printf("early is %x\n", early)
 
-	fmt.Printf("hash is %x\n", writeHash(nil))
+	fmt.Printf("hash is %x\n", WriteHash(nil))
 
 	serverkey := strtoByte("c298298bdfd2157b1561513be095caf3bd0e68dc9c31060e7a3af3cec1b03734")
 	ciphertext := strtoByte("e514a1d7a61af7a31ed4c757707072f73cef3dc4a160e1")
@@ -289,7 +289,7 @@ func _() {
 
 	//hasher := sha256.New()
 	//hasher.Write(strtoByte(hello))
-	hashed_message := writeHash(strtoByte(hello))
+	hashed_message := WriteHash(strtoByte(hello))
 	fmt.Printf("hashed_message %x\n", hashed_message)
 	//b := strtoByte(str20x64)
 	//b = append(b, strtoByte(serverCertificateContextString)...)
@@ -317,7 +317,7 @@ func _() {
 	//tlsinfo.KeyBlockTLS13.clientHandshakeIV = strtoByte("7e2fad51ebfcc379edaf2e6a")
 	//
 	//finMessage := []byte{HandshakeTypeFinished}
-	//finMessage = append(finMessage, uintTo3byte(uint32(len(mac.Sum(nil))))...)
+	//finMessage = append(finMessage, UintTo3byte(uint32(len(mac.Sum(nil))))...)
 	//finMessage = append(finMessage, mac.Sum(nil)...)
 	//finMessage = append(finMessage, ContentTypeHandShake)
 	//

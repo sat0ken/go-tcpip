@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"encoding/binary"

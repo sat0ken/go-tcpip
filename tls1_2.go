@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"bytes"
@@ -30,7 +30,7 @@ func NewTLSRecordHeader(ctype string, length uint16) []byte {
 	}
 
 	b = append(b, TLS1_2...)
-	b = append(b, uintTo2byte(length)...)
+	b = append(b, UintTo2byte(length)...)
 	return b
 }
 
@@ -61,7 +61,7 @@ func (*ClientHello) NewClientHello(tlsversion []byte) (TLSInfo, []byte) {
 	}
 
 	// Typeの1byteとLengthの3byteを合計から引く
-	handshake.Length = uintTo3byte(uint32(toByteLen(handshake) - 4))
+	handshake.Length = UintTo3byte(uint32(toByteLen(handshake) - 4))
 	// byteにする
 	handshakebyte := toByteArr(handshake)
 
@@ -126,12 +126,12 @@ func (*ClientKeyExchange) NewClientKeyRSAExchange(pubkey *rsa.PublicKey) (client
 	clientKey := ClientKeyExchange{
 		HandshakeType:                  []byte{HandshakeTypeClientKeyExchange},
 		Length:                         []byte{0x00, 0x00, 0x00},
-		EncryptedPreMasterSecretLength: uintTo2byte(uint16(len(secret))),
+		EncryptedPreMasterSecretLength: UintTo2byte(uint16(len(secret))),
 		EncryptedPreMasterSecret:       secret,
 	}
 
 	// Lengthをセット
-	clientKey.Length = uintTo3byte(uint32(toByteLen(clientKey) - 4))
+	clientKey.Length = UintTo3byte(uint32(toByteLen(clientKey) - 4))
 
 	// byte配列にする
 	clientKeyExchange = append(clientKeyExchange, NewTLSRecordHeader("Handshake", toByteLen(clientKey))...)
@@ -150,7 +150,7 @@ func (*ClientKeyExchange) NewClientKeyECDHAExchange(clientPublicKey []byte) (cli
 	}
 
 	// Lengthをセット
-	clientKey.Length = uintTo3byte(uint32(toByteLen(clientKey) - 4))
+	clientKey.Length = UintTo3byte(uint32(toByteLen(clientKey) - 4))
 
 	// byte配列にする
 	clientKeyExchange = append(clientKeyExchange, NewTLSRecordHeader("Handshake", toByteLen(clientKey))...)
@@ -169,13 +169,13 @@ func (*ClientCertificate) NewClientCertificate(cert tls.Certificate) (clientCert
 	clientCert := ClientCertificate{
 		HandshakeType:      []byte{HandshakeTypeCertificate},
 		Length:             []byte{0x00, 0x00, 0x00},
-		CertificatesLength: uintTo3byte(uint32(len(cert.Certificate[0]) + 3)),
-		CertificateLength:  uintTo3byte(uint32(len(cert.Certificate[0]))),
+		CertificatesLength: UintTo3byte(uint32(len(cert.Certificate[0]) + 3)),
+		CertificateLength:  UintTo3byte(uint32(len(cert.Certificate[0]))),
 		Certificate:        cert.Certificate[0],
 	}
 
 	// Lengthをセット
-	clientCert.Length = uintTo3byte(uint32(toByteLen(clientCert) - 4))
+	clientCert.Length = UintTo3byte(uint32(toByteLen(clientCert) - 4))
 
 	// TLSレコードヘッダを入れてbyte配列にする
 	clientCertBytes = append(clientCertBytes, NewTLSRecordHeader("Handshake", toByteLen(clientCert))...)
@@ -210,7 +210,7 @@ func (*CertificateVerify) NewCertificateVerify(certs tls.Certificate, handshake_
 	}
 
 	// Lengthをセット
-	verify.Length = uintTo3byte(uint32(toByteLen(verify) - 4))
+	verify.Length = UintTo3byte(uint32(toByteLen(verify) - 4))
 
 	// TLSレコードヘッダを入れてbyte配列にする
 	certVerifyBytes = append(certVerifyBytes, NewTLSRecordHeader("Handshake", toByteLen(verify))...)
@@ -301,7 +301,7 @@ func unpackECDiffieHellmanParam(packet []byte) ECDiffieHellmanParam {
 	}
 }
 
-func genrateECDHESharedKey(serverPublicKey []byte) ECDHEKeys {
+func GenrateECDHESharedKey(serverPublicKey []byte) ECDHEKeys {
 	// 秘密鍵となる32byteの乱数をセット
 	clientPrivateKey := randomByte(curve25519.ScalarSize)
 	// ClientKeyExchangeでサーバに送る公開鍵を生成
@@ -313,13 +313,13 @@ func genrateECDHESharedKey(serverPublicKey []byte) ECDHEKeys {
 	fmt.Printf("gen shared key is : %x\n", clientSharedKey)
 
 	return ECDHEKeys{
-		privateKey: clientPrivateKey,
-		publicKey:  clientPublicKey,
-		sharedKey:  clientSharedKey,
+		PrivateKey: clientPrivateKey,
+		PublicKey:  clientPublicKey,
+		SharedKey:  clientSharedKey,
 	}
 }
 
-func parseTLSHandshake(packet []byte, tlsversion []byte) interface{} {
+func ParseTLSHandshake(packet []byte, tlsversion []byte) interface{} {
 	var i interface{}
 
 	switch packet[0] {
@@ -454,7 +454,7 @@ func parseTLSHandshake(packet []byte, tlsversion []byte) interface{} {
 	return i
 }
 
-func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
+func ParseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 	var protocols []TLSProtocol
 	var protocolsByte []byte
 	// TCPのデータをContentType、TLSバージョンのbyte配列でSplitする
@@ -468,7 +468,7 @@ func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 				ProtocolVersion: []byte{0x03, 0x03},
 				Length:          v[0:2],
 			}
-			tlsproto := parseTLSHandshake(v[2:], TLS1_2)
+			tlsproto := ParseTLSHandshake(v[2:], TLS1_2)
 			proto := TLSProtocol{
 				RHeader:           rHeader,
 				HandshakeProtocol: tlsproto,
@@ -482,7 +482,7 @@ func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 				Length:          v[0:2],
 			}
 			//ServerHelloDoneの4byteだけ
-			tls := parseTLSHandshake(v[2:6], TLS1_2)
+			tls := ParseTLSHandshake(v[2:6], TLS1_2)
 			proto := TLSProtocol{
 				RHeader:           rHeader,
 				HandshakeProtocol: tls,
@@ -496,10 +496,10 @@ func parseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 
 func starFromClientHello(sendfd int, sendInfo TCPIP) error {
 	clienthelloPacket := NewTCPIP(sendInfo)
-	destIp := iptobyte(sendInfo.DestIP)
+	destIp := Iptobyte(sendInfo.DestIP)
 
 	// Client Helloを送る
-	addr := setSockAddrInet4(destIp, int(sendInfo.DestPort))
+	addr := SetSockAddrInet4(destIp, int(sendInfo.DestPort))
 	SendIPv4Socket(sendfd, clienthelloPacket, addr)
 	fmt.Printf("Send TLS Client Hello to : %s\n", sendInfo.DestIP)
 
@@ -526,10 +526,10 @@ func starFromClientHello(sendfd int, sendInfo TCPIP) error {
 			// IPヘッダを省いて20byte目からのTCPパケットをパースする
 			recvtcp = parseTCP(recvBuf[20:])
 
-			if recvtcp.ControlFlags[0] == ACK && bytes.Equal(recvtcp.SourcePort, uintTo2byte(sendInfo.DestPort)) {
+			if recvtcp.ControlFlags[0] == ACK && bytes.Equal(recvtcp.SourcePort, UintTo2byte(sendInfo.DestPort)) {
 				fmt.Printf("Recv ACK from %s\n", sendInfo.DestIP)
 				time.Sleep(10 * time.Millisecond)
-			} else if recvtcp.ControlFlags[0] == PSHACK && bytes.Equal(recvtcp.SourcePort, uintTo2byte(sendInfo.DestPort)) {
+			} else if recvtcp.ControlFlags[0] == PSHACK && bytes.Equal(recvtcp.SourcePort, UintTo2byte(sendInfo.DestPort)) {
 				fmt.Printf("Recv PSHACK from %s\n", sendInfo.DestIP)
 				//fmt.Printf("TCP Data : %s\n", printByteArr(recvtcp.TCPData))
 
@@ -539,7 +539,7 @@ func starFromClientHello(sendfd int, sendInfo TCPIP) error {
 				tcpBytes = append(tcpBytes, recvtcp.TCPData[0:tcpLength]...)
 				//fmt.Printf("PSHACK TCP Data : %s\n", printByteArr(tlsbyte))
 
-				tlsProto, tlsBytes = parseTLSPacket(tcpBytes)
+				tlsProto, tlsBytes = ParseTLSPacket(tcpBytes)
 				//pp.Println(tlsProto)
 
 				time.Sleep(10 * time.Millisecond)
@@ -612,7 +612,7 @@ func starFromClientHello(sendfd int, sendInfo TCPIP) error {
 	// finished messageを作成する、先頭にヘッダを入れてからverify_dataを入れる
 	// 作成された16byteがplaintextとなり暗号化する
 	finMessage := []byte{HandshakeTypeFinished}
-	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
+	finMessage = append(finMessage, UintTo3byte(uint32(len(verifyData)))...)
 	finMessage = append(finMessage, verifyData...)
 	fmt.Printf("finMessage : %x\n", finMessage)
 
@@ -635,7 +635,7 @@ func starFromClientHello(sendfd int, sendInfo TCPIP) error {
 
 	finished := NewTCPIP(fin)
 
-	destIp := iptobyte(fin.DestIP)
+	destIp := Iptobyte(fin.DestIP)
 
 	// Finished message を送る
 	addr := setSockAddrInet4(destIp, LOCALPORT)

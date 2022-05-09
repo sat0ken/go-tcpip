@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"crypto/aes"
@@ -55,7 +55,7 @@ func prf(secret, label, clientServerRandom []byte, prfLength int) []byte {
 	return phash(secret, seed, prfLength)
 }
 
-func createMasterandKeyblock(premasterBytes MasterSecretInfo) ([]byte, KeyBlock) {
+func CreateMasterandKeyblock(premasterBytes MasterSecretInfo) ([]byte, KeyBlock) {
 	var random []byte
 	random = append(random, premasterBytes.ClientRandom...)
 	random = append(random, premasterBytes.ServerRandom...)
@@ -86,7 +86,7 @@ func createMasterandKeyblock(premasterBytes MasterSecretInfo) ([]byte, KeyBlock)
 	return master, keyblock
 }
 
-func createVerifyData(master, labels, handhake_messages []byte) []byte {
+func CreateVerifyData(master, labels, handhake_messages []byte) []byte {
 	// これまでの全てのhandshake protocolでハッシュを計算する
 	hasher := sha256.New()
 	hasher.Write(handhake_messages)
@@ -124,7 +124,7 @@ func createVerifyData(master, labels, handhake_messages []byte) []byte {
 //	// finished messageを作成する、先頭にレコードヘッダを入れてからverify_dataを入れる
 //	// 作成された16byteがplaintextとなり暗号化する
 //	finMessage := []byte{HandshakeTypeFinished}
-//	finMessage = append(finMessage, uintTo3byte(uint32(len(verifyData)))...)
+//	finMessage = append(finMessage, UintTo3byte(uint32(len(verifyData)))...)
 //	finMessage = append(finMessage, verifyData...)
 //	fmt.Printf("finMessage : %x\n", finMessage)
 //
@@ -135,7 +135,7 @@ func createVerifyData(master, labels, handhake_messages []byte) []byte {
 //	rheader := TLSRecordHeader{
 //		ContentType:     []byte{ContentTypeHandShake},
 //		ProtocolVersion: TLS1_2,
-//		Length:          uintTo2byte(uint16(len(finMessage))),
+//		Length:          UintTo2byte(uint16(len(finMessage))),
 //	}
 //
 //	tlsinfo := TLSInfo{
@@ -146,7 +146,7 @@ func createVerifyData(master, labels, handhake_messages []byte) []byte {
 //	encryptClientMessage(toByteArr(rheader), finMessage, tlsinfo)
 //}
 
-func encryptClientMessage(header, plaintext []byte, tlsinfo TLSInfo) []byte {
+func EncryptClientMessage(header, plaintext []byte, tlsinfo TLSInfo) []byte {
 
 	record_seq := append(header, getNonce(tlsinfo.ClientSequenceNum, 8)...)
 
@@ -161,7 +161,7 @@ func encryptClientMessage(header, plaintext []byte, tlsinfo TLSInfo) []byte {
 
 	fmt.Printf("record is %x, nonce is : %x, plaintext is %x, add is %x\n", record_seq, nonce, plaintext, add)
 	encryptedMessage := aesgcm.Seal(record_seq, nonce, plaintext, add)
-	updatelength := uintTo2byte(uint16(len(encryptedMessage) - 5))
+	updatelength := UintTo2byte(uint16(len(encryptedMessage) - 5))
 	encryptedMessage[3] = updatelength[0]
 	encryptedMessage[4] = updatelength[1]
 
@@ -170,7 +170,7 @@ func encryptClientMessage(header, plaintext []byte, tlsinfo TLSInfo) []byte {
 	return encryptedMessage
 }
 
-func decryptServerMessage(finMessage []byte, tlsinfo TLSInfo, ctype int) []byte {
+func DecryptServerMessage(finMessage []byte, tlsinfo TLSInfo, ctype int) []byte {
 
 	header := readByteNum(finMessage, 0, 5)
 	ciphertextLength := binary.BigEndian.Uint16(header[3:]) - 8
@@ -190,7 +190,7 @@ func decryptServerMessage(finMessage []byte, tlsinfo TLSInfo, ctype int) []byte 
 	add = append(add, byte(ctype))
 	add = append(add, TLS1_2...)
 	plainLength := len(ciphertext) - aesgcm.Overhead()
-	add = append(add, uintTo2byte(uint16(plainLength))...)
+	add = append(add, UintTo2byte(uint16(plainLength))...)
 
 	fmt.Printf("nonce is : %x, ciphertext is %x, add is %x\n", nonce, ciphertext, add)
 	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, add)
@@ -249,10 +249,10 @@ func decryptFinTest() {
 	add := getNonce(0, 8)
 	plainLength := len(ciphertext) - aesgcm.Overhead()
 	add = append(add, []byte{0x16, 0x03, 0x03}...)
-	add = append(add, uintTo2byte(uint16(plainLength))...)
+	add = append(add, UintTo2byte(uint16(plainLength))...)
 	//add := strtoByte("00000000000000011703030006")
 
-	///plainLength := uintTo2byte(uint16(len(ciphertext) - aesgcm.Overhead()))
+	///plainLength := UintTo2byte(uint16(len(ciphertext) - aesgcm.Overhead()))
 	fmt.Printf("nonce is : %x, ciphertext is %x, add is %x\n", nonce, ciphertext, add)
 	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, add)
 	if err != nil {

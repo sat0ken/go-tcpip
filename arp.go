@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"fmt"
@@ -43,7 +43,7 @@ func NewArpRequest(localif LocalIpMacAddr, targetip string) Arp {
 		// ターゲットMACアドレス broadcastなのでAll zero
 		TargetMacAddr: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		// ターゲットIPアドレス
-		TargetIpAddr: iptobyte(targetip),
+		TargetIpAddr: Iptobyte(targetip),
 	}
 }
 

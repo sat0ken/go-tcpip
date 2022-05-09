@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ func calcSequenceNumber(packet []byte, add uint32) []byte {
 	return b
 }
 
-func setSockAddrInet4(destIp []byte, destPort int) syscall.SockaddrInet4 {
+func SetSockAddrInet4(destIp []byte, destPort int) syscall.SockaddrInet4 {
 	return syscall.SockaddrInet4{
 		Addr: [4]byte{destIp[0], destIp[1], destIp[2], destIp[3]},
 		Port: destPort,
@@ -31,7 +31,7 @@ func startConnectionFromEth(sendfd int, tcpip TCPIP) (TCPIP, error) {
 
 	synPacket := NewPacket(tcpip)
 	destIp := localif.LocalIpAddr
-	destPort := uintTo2byte(tcpip.DestPort)
+	destPort := UintTo2byte(tcpip.DestPort)
 
 	addr := syscall.SockaddrLinklayer{
 		Protocol: syscall.ETH_P_IP,
@@ -70,10 +70,10 @@ func startConnectionFromEth(sendfd int, tcpip TCPIP) (TCPIP, error) {
 func startTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
 
 	synPacket := NewTCPIP(tcpip)
-	destIp := iptobyte(tcpip.DestIP)
-	destPort := uintTo2byte(tcpip.DestPort)
+	destIp := Iptobyte(tcpip.DestIP)
+	destPort := UintTo2byte(tcpip.DestPort)
 
-	addr := setSockAddrInet4(destIp, int(tcpip.DestPort))
+	addr := SetSockAddrInet4(destIp, int(tcpip.DestPort))
 
 	// SYNを送る
 	err := SendIPv4Socket(sendfd, synPacket, addr)
@@ -109,10 +109,10 @@ func startTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
 
 func sendNginx(sendfd int, tcpip TCPIP) {
 	pshPacket := NewTCPIP(tcpip)
-	destIp := iptobyte(tcpip.DestIP)
-	destPort := uintTo2byte(tcpip.DestPort)
+	destIp := Iptobyte(tcpip.DestIP)
+	destPort := UintTo2byte(tcpip.DestPort)
 
-	addr := setSockAddrInet4(destIp, int(tcpip.DestPort))
+	addr := SetSockAddrInet4(destIp, int(tcpip.DestPort))
 
 	// httpリクエストを送る
 	err := SendIPv4Socket(sendfd, pshPacket, addr)

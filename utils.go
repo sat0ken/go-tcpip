@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"bytes"
@@ -58,7 +58,7 @@ func getChipersList() []byte {
 	// https://pkg.go.dev/crypto/tls#CipherSuites
 	cipher := tls.CipherSuites()
 	for _, v := range cipher {
-		b = append(b, uintTo2byte(v.ID)...)
+		b = append(b, UintTo2byte(v.ID)...)
 	}
 
 	return b
@@ -109,7 +109,7 @@ func strtoByte(str string) []byte {
 	return b
 }
 
-func readClientCertificate() tls.Certificate {
+func ReadClientCertificate() tls.Certificate {
 	cert, err := tls.LoadX509KeyPair("debug/client.pem", "debug/client-key.pem")
 	if err != nil {
 		log.Fatal(err)
@@ -117,7 +117,7 @@ func readClientCertificate() tls.Certificate {
 	return cert
 }
 
-func writeHash(message []byte) []byte {
+func WriteHash(message []byte) []byte {
 	hasher := sha256.New()
 	hasher.Write(message)
 

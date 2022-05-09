@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 // https://www.infraexpert.com/study/tcpip1.html
 type IPHeader struct {

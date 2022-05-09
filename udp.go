@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"bytes"
@@ -97,11 +97,11 @@ func udpSend() {
 	ipheader := NewIPHeader(localif.LocalIpAddr, localif.LocalIpAddr, "UDP")
 
 	//var udp UDPHeader
-	udpheader := NewUDPHeader(uintTo2byte(42279), uintTo2byte(12345))
+	udpheader := NewUDPHeader(UintTo2byte(42279), UintTo2byte(12345))
 	udpdata := []byte(`hogehoge`)
 
-	ipheader.TotalPacketLength = uintTo2byte(uint16(20) + toByteLen(udpheader) + uint16(len(udpdata)))
-	udpheader.PacketLenth = uintTo2byte(toByteLen(udpheader) + uint16(len(udpdata)))
+	ipheader.TotalPacketLength = UintTo2byte(uint16(20) + toByteLen(udpheader) + uint16(len(udpdata)))
+	udpheader.PacketLenth = UintTo2byte(toByteLen(udpheader) + uint16(len(udpdata)))
 
 	// IPヘッダのチェックサムを計算する
 	ipsum := sumByteArr(toByteArr(ipheader))

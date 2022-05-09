@@ -1,4 +1,4 @@
-package main
+package tcpip
 
 import (
 	"encoding/binary"
@@ -17,7 +17,7 @@ type TCPIP struct {
 	Data      []byte
 }
 
-func iptobyte(ip string) []byte {
+func Iptobyte(ip string) []byte {
 	var ipbyte []byte
 	for _, v := range strings.Split(ip, ".") {
 		i, _ := strconv.ParseUint(v, 10, 8)
@@ -36,7 +36,7 @@ func createSequenceNumber() []byte {
 }
 
 func NewTCPIP(tcpip TCPIP) []byte {
-	destIP := iptobyte(tcpip.DestIP)
+	destIP := Iptobyte(tcpip.DestIP)
 	//localif, _ := getLocalIpAddr("wlp4s0")
 	localif, _ := getLocalIpAddr("lo")
 
@@ -45,7 +45,7 @@ func NewTCPIP(tcpip TCPIP) []byte {
 
 	var tcpheader TCPHeader
 	// 自分のポートは42279でとりま固定
-	tcpheader = NewTCPHeader(uintTo2byte(42279), uintTo2byte(tcpip.DestPort), tcpip.TcpFlag)
+	tcpheader = NewTCPHeader(UintTo2byte(42279), UintTo2byte(tcpip.DestPort), tcpip.TcpFlag)
 
 	var tcpOption TCPOptions
 
@@ -61,12 +61,12 @@ func NewTCPIP(tcpip TCPIP) []byte {
 	// IPヘッダにLengthをセットする
 	// IP=20byte + tcpヘッダの長さ + (tcpオプションの長さ) + dataの長さ
 	if tcpip.TcpFlag == "PSHACK" {
-		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader) + uint16(len(tcpip.Data)))
+		ipheader.TotalPacketLength = UintTo2byte(20 + toByteLen(tcpheader) + uint16(len(tcpip.Data)))
 	} else if tcpip.TcpFlag == "SYN" {
-		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader) + toByteLen(tcpOption))
+		ipheader.TotalPacketLength = UintTo2byte(20 + toByteLen(tcpheader) + toByteLen(tcpOption))
 	} else {
 		// ACKのときはTCPヘッダまで
-		ipheader.TotalPacketLength = uintTo2byte(20 + toByteLen(tcpheader)) // + toByteLen(tcpOption))
+		ipheader.TotalPacketLength = UintTo2byte(20 + toByteLen(tcpheader)) // + toByteLen(tcpOption))
 	}
 
 	// Lengthをセットしたらチェックサムを計算する
