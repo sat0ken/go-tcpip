@@ -111,18 +111,17 @@ var HuffmanCodeTable = map[string]string{
 func HuffmanEncode(str string) string {
 	split := strings.Split(str, "")
 
-	var decstr string
+	var encstr string
 	// 1文字ずつに分解した文字をハフマン符号化テーブルを参照して検索
 	// 検索してヒットした結果のバイナリ文字列を変数に追加
 	for _, v := range split {
-		decstr += HuffmanCodeTable[v]
+		encstr += HuffmanCodeTable[v]
 	}
-	fmt.Printf("length is %d, %s\n", len(decstr), decstr)
 	// バイナリ文字列をパディングして8、オクテットで割り切れるようにする
 	// 割り切れなかったら末尾に1を入れて埋める
 	for {
-		if len(decstr)%8 != 0 {
-			decstr += "1"
+		if len(encstr)%8 != 0 {
+			encstr += "1"
 		} else {
 			break
 		}
@@ -132,15 +131,14 @@ func HuffmanEncode(str string) string {
 	//binLength, _ := strconv.ParseUint(fmt.Sprintf("%x", (127+(len(decstr)/8))/2), 10, 16)
 
 	var result string
-	for i, _ := range decstr {
+	for i, _ := range encstr {
 		// 各4bit値を繰り返し処理して、16進数に変換
 		if i%4 == 0 {
-			bin, _ := strconv.ParseUint(decstr[i:i+4], 2, 4)
+			bin, _ := strconv.ParseUint(encstr[i:i+4], 2, 4)
 			result += fmt.Sprintf("%x", bin)
 		}
 	}
 
-	// 結果をPrint
 	return result
 }
 
@@ -154,8 +152,18 @@ func getHuffmanTable(str string) (hit string) {
 	return hit
 }
 
-func HuffmanDecode(binstr string) string {
-	var encstr string
+func HuffmanDecode(hpackBytes []byte) string {
+	var binstr string
+	// bitフォーマットのstringにする
+	for _, v := range hpackBytes {
+		binstr += fmt.Sprintf("%08b", v)
+	}
+
+	// paddingを削る
+	//binstr = binstr[0:length]
+	//fmt.Printf("binstr is %s\n", binstr)
+
+	var decstr string
 	for {
 		for _, v := range bitLength {
 			// 残り文字数より多いbitはskipする
@@ -165,13 +173,16 @@ func HuffmanDecode(binstr string) string {
 			result := getHuffmanTable(binstr[0:v])
 			if result != "" {
 				binstr = binstr[v:]
-				encstr += result
+				decstr += result
 				//fmt.Printf("remain str is %s, length is %d\n", encstr, len(encstr))
 			}
 		}
 		if len(binstr) == 0 {
 			break
+		} else if !strings.Contains(binstr, "0") {
+			// 残りの文字が全部１なら全部Paddingだからbreak
+			break
 		}
 	}
-	return encstr
+	return decstr
 }

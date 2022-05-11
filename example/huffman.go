@@ -6,10 +6,13 @@ import (
 )
 
 func main() {
-	//decode("DELETE")
-	//encode("101111111000001100111110000011011111100000")
-	//decode("1000011011101")
 
-	fmt.Println(tcpip.HuffmanEncode("10"))
-	fmt.Println(tcpip.HuffmanDecode("1000011011101"))
+	//fmt.Println(tcpip.HuffmanEncode("DELETE"))
+	fmt.Println(tcpip.HuffmanDecode([]byte{0xbf, 0x83, 0x3e, 0x0d, 0xf8, 0x3f}))
+	//
+	//var b []byte
+	//b = hpack.AppendHuffmanString(nil, "DELETE")
+	//fmt.Printf("%x\n", b)
+	//s, _ := hpack.HuffmanDecodeToString([]byte{0xbf, 0x83, 0x3e, 0x0d, 0xf8, 0x3f})
+	//fmt.Printf("%s\n", s)
 }
