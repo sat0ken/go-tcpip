@@ -142,26 +142,13 @@ func HuffmanEncode(str string) string {
 	return result
 }
 
-func getHuffmanTable(str string) (hit string) {
-	for k, v := range HuffmanCodeTable {
-		if v == str {
-			//fmt.Printf("key is %s, value is %s\n", k, v)
-			hit = k
-		}
-	}
-	return hit
-}
-
 func HuffmanDecode(hpackBytes []byte) string {
 	var binstr string
 	// bitフォーマットのstringにする
 	for _, v := range hpackBytes {
 		binstr += fmt.Sprintf("%08b", v)
 	}
-
-	// paddingを削る
-	//binstr = binstr[0:length]
-	//fmt.Printf("binstr is %s\n", binstr)
+	fmt.Println(binstr)
 
 	var decstr string
 	for {
@@ -185,4 +172,14 @@ func HuffmanDecode(hpackBytes []byte) string {
 		}
 	}
 	return decstr
+}
+
+func getHuffmanTable(str string) (hit string) {
+	for k, v := range HuffmanCodeTable {
+		if v == str {
+			//fmt.Printf("key is %s, value is %s\n", k, v)
+			hit = k
+		}
+	}
+	return hit
 }
