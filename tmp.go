@@ -7,10 +7,12 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"github.com/k0kubun/pp/v3"
 	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/crypto/curve25519"
 	"log"
 	"os"
 	"syscall"
@@ -343,4 +345,22 @@ func _() {
 	//// Encrypt the actual ContentType and replace the plaintext one.
 	//record = append(record, record[0])
 	//fmt.Printf("record %x\n", record)
+}
+
+func tls13_keyschedule() {
+
+	// private key (32 octets): 49 af 42 ba 7f 79 94 85 2d 71 3e f2 78 4b cb ca a7 91 1d e2 6a dc 56 42 cb 63 45 40 e7 ea 50 05
+	clientPrivateKey, _ := hex.DecodeString("49af42ba7f7994852d713ef2784bcbcaa7911de26adc5642cb634540e7ea5005")
+	// public key (32 octets): c9 82 88 76 11 20 95 fe 66 76 2b db f7 c6 72 e1 56 d6 cc 25 3b 83 3d f1 dd 69 b1 b0 4e 75 1f 0f
+	serverPublickKey, _ := hex.DecodeString("c9828876112095fe66762bdbf7c672e156d6cc253b833df1dd69b1b04e751f0f")
+
+	// {client} construct a ClientHello handshake message:
+	clienthello := "010000c00303cb34ecb1e78163ba1c38c6dacb196a6dffa21a8d9912ec18a2ef6283024dece7000006130113031302010000910000000b0009000006736572766572ff01000100000a00140012001d0017001800190100010101020103010400230000003300260024001d002099381de560e4bd43d23d8e435a7dbafeb3c06e51c13cae4d5413691e529aaf2c002b0003020304000d0020001e040305030603020308040805080604010501060102010402050206020202002d00020101001c00024001"
+	// {server} construct a ServerHello handshake message:
+	sererhello := "020000560303a6af06a4121860dc5e6e60249cd34c95930c8ac5cb1434dac155772ed3e2692800130100002e00330024001d0020c9828876112095fe66762bdbf7c672e156d6cc253b833df1dd69b1b04e751f0f002b00020304"
+
+	clientserverhello, _ := hex.DecodeString(clienthello + sererhello)
+
+	sharedkey, _ := curve25519.X25519(clientPrivateKey, serverPublickKey)
+	KeyscheduleToMasterSecret(sharedkey, clientserverhello)
 }

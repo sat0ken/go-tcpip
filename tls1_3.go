@@ -28,11 +28,15 @@ func genrateClientECDHEKey() ECDHEKeys {
 }
 
 // golangのclientのをキャプチャしてそのままセットする
-func setTLS13Extension() ([]byte, ECDHEKeys) {
+func setTLS13Extension(http2 bool) ([]byte, ECDHEKeys) {
 	var tlsExtension []byte
 
 	// set length
-	tlsExtension = append(tlsExtension, []byte{0x00, 0x6F}...)
+	if http2 {
+		tlsExtension = append(tlsExtension, []byte{0x00, 0x78}...)
+	} else {
+		tlsExtension = append(tlsExtension, []byte{0x00, 0x6F}...)
+	}
 
 	//　status_reqeust
 	tlsExtension = append(tlsExtension, []byte{0x00, 0x05, 0x00, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00}...)
@@ -53,6 +57,11 @@ func setTLS13Extension() ([]byte, ECDHEKeys) {
 
 	// renagotiation_info
 	tlsExtension = append(tlsExtension, []byte{0xff, 0x01, 0x00, 0x01, 0x00}...)
+
+	if http2 {
+		tlsExtension = append(tlsExtension, []byte{0x00, 0x10, 0x00, 0x05, 0x00, 0x03, 0x02, 0x68, 0x32}...)
+	}
+
 	// signed_certificate_timestamp
 	tlsExtension = append(tlsExtension, []byte{0x00, 0x12, 0x00, 0x00}...)
 	// supported_versions

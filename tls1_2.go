@@ -34,7 +34,7 @@ func NewTLSRecordHeader(ctype string, length uint16) []byte {
 	return b
 }
 
-func (*ClientHello) NewClientHello(tlsversion []byte) (TLSInfo, []byte) {
+func (*ClientHello) NewClientHello(tlsversion []byte, http2 bool) (TLSInfo, []byte) {
 	var tlsinfo TLSInfo
 	handshake := ClientHello{
 		HandshakeType:      []byte{HandshakeTypeClientHello},
@@ -57,7 +57,7 @@ func (*ClientHello) NewClientHello(tlsversion []byte) (TLSInfo, []byte) {
 		tlsinfo.MasterSecretInfo.ClientRandom = handshake.Random
 	} else {
 		// TLS1.3のextensionをセット
-		handshake.Extensions, tlsinfo.ECDHEKeys = setTLS13Extension()
+		handshake.Extensions, tlsinfo.ECDHEKeys = setTLS13Extension(http2)
 	}
 
 	// Typeの1byteとLengthの3byteを合計から引く

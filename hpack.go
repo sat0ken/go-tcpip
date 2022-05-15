@@ -108,7 +108,7 @@ var HuffmanCodeTable = map[string]string{
 
 // 詳解HTTP/2の8章のPerlのコードを元に実装
 // https://github.com/tunetheweb/http2-in-action/blob/main/Listing%208.1/hpack_huffman_encoding.pl
-func HuffmanEncode(str string) string {
+func HuffmanEncode(str string) []byte {
 	split := strings.Split(str, "")
 
 	var encstr string
@@ -139,7 +139,7 @@ func HuffmanEncode(str string) string {
 		}
 	}
 
-	return result
+	return strtoByte(result)
 }
 
 func HuffmanDecode(hpackBytes []byte) string {
@@ -176,7 +176,6 @@ func HuffmanDecode(hpackBytes []byte) string {
 func getHuffmanTable(str string) (hit string) {
 	for k, v := range HuffmanCodeTable {
 		if v == str {
-			//fmt.Printf("key is %s, value is %s\n", k, v)
 			hit = k
 		}
 	}
@@ -190,7 +189,7 @@ func DecodeHttp2Header(headerByte []byte) []Http2Header {
 	for i := 0; i < len(headerByte); i++ {
 		binstr := fmt.Sprintf("%08b", headerByte[i])
 		if strings.HasPrefix(binstr, "1") {
-			// インデックスヘッダフィールド表現
+			// インデックスヘッダフィールド表現(1で始まる)
 			// 残り7bitを10進数にする
 			d, _ := strconv.ParseInt(binstr[1:], 2, 8)
 			http2Header = append(http2Header, StaticHttp2Table[d-1])
@@ -215,4 +214,47 @@ func DecodeHttp2Header(headerByte []byte) []Http2Header {
 	}
 
 	return http2Header
+}
+
+func getHttp2HeaderIndexByValue(value string) (index int) {
+	for k, v := range StaticHttp2Table {
+		if v.Value == value {
+			index = k
+		}
+	}
+	return index
+}
+
+func getHttp2HeaderIndexByName(name string) (index int) {
+	for k, v := range StaticHttp2Table {
+		if v.Name == name {
+			index = k
+		}
+	}
+	return index
+}
+
+func CreateHttp2Header(name, value string) (headerByte []byte) {
+
+	if name == "" {
+		// インデックスヘッダフィールド表現(1で始まる)
+		index := getHttp2HeaderIndexByValue(value)
+		headerIndex, _ := strconv.ParseUint(fmt.Sprintf("1%07b", index+1), 2, 8)
+		headerByte = append(headerByte, byte(headerIndex))
+	} else {
+		// インデックス更新を伴うリテラルヘッダフィールド（01で始まる）
+		index := getHttp2HeaderIndexByName(name)
+		headerIndex, _ := strconv.ParseUint(fmt.Sprintf("01%06b", index+1), 2, 8)
+
+		// Huffman codignを意味する1のbitとcodingされたLengthを意味する7bit
+		encodeVal := HuffmanEncode(value)
+		headerVal, _ := strconv.ParseUint(fmt.Sprintf("1%07b", len(encodeVal)), 2, 8)
+
+		headerByte = append(headerByte, byte(headerIndex))
+		headerByte = append(headerByte, byte(headerVal))
+		headerByte = append(headerByte, encodeVal...)
+
+	}
+
+	return headerByte
 }

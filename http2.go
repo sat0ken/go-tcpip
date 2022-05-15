@@ -1,5 +1,35 @@
 package tcpip
 
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+	"strconv"
+)
+
+const (
+	StreamMagic   = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+	FrameTypeData = iota - 1
+	FrameTypeHeaders
+	FrameTypePriority
+	FrameTypeRstStream
+	FrameTypeSettings
+	FrameTypePushPromise
+	FrameTypePing
+	FrameTypeGoaway
+	FrameTypeWindowUpdate
+	FrameTypeContinuation
+)
+
+const (
+	SettingsHeaderTableSize = iota + 1
+	SettingsEnablePush
+	SettingsMaxCouncurrentStreams
+	SettingsInitialWindowSize
+	SettingsHMaxFrameSize
+	SettingsMaxHeaderListSize
+)
+
 type Http2Header struct {
 	Name  string
 	Value string
@@ -67,4 +97,197 @@ var StaticHttp2Table = []Http2Header{
 	{Name: "vary"},
 	{Name: "via"},
 	{Name: "www-authenticate"},
+}
+
+type Http2Frame struct {
+	Length           []byte
+	Type             []byte
+	Flags            []byte
+	StreamIdentifier []byte
+	Value            []byte
+}
+
+type SettingsFrame struct {
+	SettingsIdentifier []byte
+	Value              []byte
+}
+
+type WindowsUpdateFrame struct {
+	StreamIdentifier     []byte
+	WindowsSizeIncrement []byte
+}
+
+type HeadersFrame struct {
+	HeaderBlockFragement []byte
+	Http2Headers         []Http2Header
+}
+
+func createPrism() (prism []byte) {
+	str := fmt.Sprintf("%x", StreamMagic)
+
+	for i, _ := range str {
+		if i%2 == 0 {
+			b, _ := strconv.ParseInt(str[i:i+2], 16, 8)
+			prism = append(prism, byte(b))
+		}
+	}
+
+	return prism
+}
+
+func createHeaders() Http2Frame {
+
+	// EnablePushをセット
+	headers := toByteArr(SettingsFrame{
+		SettingsIdentifier: UintTo2byte(uint16(SettingsEnablePush)),
+		Value:              []byte{0x00, 0x00, 0x00, 0x00},
+	})
+	// Initial Window Sizeをセット
+	headers = append(headers, toByteArr(SettingsFrame{
+		SettingsIdentifier: UintTo2byte(uint16(SettingsInitialWindowSize)),
+		Value:              []byte{0x00, 0x40, 0x00, 0x00},
+	})...)
+
+	// Max Header List Size をセット
+	headers = append(headers, toByteArr(SettingsFrame{
+		SettingsIdentifier: UintTo2byte(uint16(SettingsMaxHeaderListSize)),
+		Value:              []byte{0x00, 0xa0, 0x00, 0x00},
+	})...)
+
+	return Http2Frame{
+		Length:           UintTo3byte(uint32(uint16(len(headers)))),
+		Type:             []byte{FrameTypeSettings},
+		Flags:            []byte{0x00},
+		StreamIdentifier: []byte{0x00, 0x00, 0x00, 0x00},
+		Value:            headers,
+	}
+
+}
+
+func CreateFirstFrametoServer() []byte {
+	var packet []byte
+
+	stream := createPrism()
+	frame := createHeaders()
+	update := Http2Frame{
+		Length:           UintTo3byte(4),
+		Type:             []byte{FrameTypeWindowUpdate},
+		Flags:            []byte{0x00},
+		StreamIdentifier: []byte{0x00, 0x00, 0x00, 0x00},
+		Value:            []byte{0x40, 0x00, 0x00, 0x00},
+	}
+
+	packet = append(packet, stream...)
+	packet = append(packet, toByteArr(frame)...)
+	packet = append(packet, toByteArr(update)...)
+
+	return packet
+}
+
+func CreateHeaderFrame() []byte {
+	var headers []byte
+
+	headers = append(headers, CreateHttp2Header(":authority", "127.0.0.1:18443")...)
+	headers = append(headers, CreateHttp2Header("", "GET")...)
+	headers = append(headers, CreateHttp2Header("", "/")...)
+	headers = append(headers, CreateHttp2Header("", "https")...)
+	headers = append(headers, CreateHttp2Header("accept-encoding", "gzip")...)
+	headers = append(headers, CreateHttp2Header("user-agent", "Go-http-client/2.0")...)
+
+	headerFrame := Http2Frame{
+		Length:           UintTo3byte(uint32(len(headers))),
+		Type:             []byte{FrameTypeHeaders},
+		Flags:            []byte{0x05},
+		StreamIdentifier: []byte{0x00, 0x00, 0x00, 0x01},
+		Value:            headers,
+	}
+
+	return toByteArr(headerFrame)
+}
+
+func getServerSettings(packet []byte) (frames []SettingsFrame) {
+
+	for i := 0; i < len(packet); i++ {
+		if i%6 == 0 {
+			si := binary.BigEndian.Uint16(packet[i : i+2])
+			switch si {
+			case SettingsHeaderTableSize:
+				frames = append(frames, SettingsFrame{
+					SettingsIdentifier: []byte{SettingsHeaderTableSize},
+					Value:              packet[i+2 : i+6],
+				})
+			case SettingsEnablePush:
+				frames = append(frames, SettingsFrame{
+					SettingsIdentifier: []byte{SettingsEnablePush},
+					Value:              packet[i+2 : i+6],
+				})
+			case SettingsMaxCouncurrentStreams:
+				frames = append(frames, SettingsFrame{
+					SettingsIdentifier: []byte{SettingsMaxCouncurrentStreams},
+					Value:              packet[i+2 : i+6],
+				})
+			case SettingsInitialWindowSize:
+				frames = append(frames, SettingsFrame{
+					SettingsIdentifier: []byte{SettingsInitialWindowSize},
+					Value:              packet[i+2 : i+6],
+				})
+			case SettingsHMaxFrameSize:
+				frames = append(frames, SettingsFrame{
+					SettingsIdentifier: []byte{SettingsInitialWindowSize},
+					Value:              packet[i+2 : i+6],
+				})
+			case SettingsMaxHeaderListSize:
+				frames = append(frames, SettingsFrame{
+					SettingsIdentifier: []byte{SettingsMaxHeaderListSize},
+					Value:              packet[i+2 : i+6],
+				})
+			}
+		}
+	}
+	fmt.Printf("FrameTypeSettings is %+v\n", frames)
+	return frames
+}
+
+func parseHTTP2Frame(packet []byte) {
+	frameType := packet[3:4]
+	//flags := packet[4:5]
+	si := packet[5:9]
+
+	switch int(frameType[0]) {
+	case FrameTypeSettings:
+		getServerSettings(packet[9:])
+	case FrameTypeWindowUpdate:
+		updateFrame := WindowsUpdateFrame{
+			StreamIdentifier:     si,
+			WindowsSizeIncrement: packet[9:],
+		}
+		fmt.Printf("FrameTypeWindowUpdate : %+v\n", updateFrame)
+	case FrameTypeHeaders:
+		headers := DecodeHttp2Header(packet[9:])
+		fmt.Printf("FrameTypeHeaders : %+v\n", headers)
+	case FrameTypeData:
+		fmt.Printf("FrameTypeData : %s\n", packet[9:])
+	}
+}
+
+func ParseHttp2Packet(packet []byte) {
+	// Lengthが0, Flagsが1, ACKS=trueだったらSkipする
+	if bytes.Equal(packet[0:3], []byte{0x00, 0x00, 0x00}) {
+		fmt.Println("Recv ACK for Settings")
+		packet = packet[9:]
+	}
+
+	totalLen := len(packet)
+
+	for i := 0; i < len(packet); i++ {
+		length := sum3BytetoLength(packet[i : i+3])
+		parseHTTP2Frame(packet[i : i+int(length)+9])
+		// Frameが続いてるならiをインクリメントして次のFrameに進める
+		if i+int(length)+9 < totalLen {
+			i = (int(length) + 9) - 1
+		} else {
+			break
+		}
+	}
+
 }

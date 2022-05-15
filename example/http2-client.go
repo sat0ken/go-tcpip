@@ -14,22 +14,10 @@ import (
 	"tcpip"
 )
 
-// おまじない
-// sudo sh -c 'echo 3 > /proc/sys/net/ipv4/tcp_retries2'
-// sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
-
-const (
-	LOCALIP   = "127.0.0.1"
-	LOCALPORT = 8443
-	// github.com
-	GITHUBIP   = "13.114.40.48"
-	GITHUBPORT = 443
-)
-
 func main() {
 
 	sock := tcpip.NewSockStreemSocket()
-	addr := tcpip.SetSockAddrInet4(tcpip.Iptobyte(LOCALIP), LOCALPORT)
+	addr := tcpip.SetSockAddrInet4(tcpip.Iptobyte("127.0.0.1"), 18443)
 	err := syscall.Connect(sock, &addr)
 	if err != nil {
 		log.Fatalf("connect err : %v\n", err)
@@ -37,7 +25,7 @@ func main() {
 
 	var hello tcpip.ClientHello
 	// ClientHelloメッセージを作成
-	tlsinfo, hellobyte := hello.NewClientHello(tcpip.TLS1_3)
+	tlsinfo, hellobyte := hello.NewClientHello(tcpip.TLS1_3, true)
 	// メッセージを送信
 	syscall.Write(sock, hellobyte)
 
@@ -144,18 +132,27 @@ exit_loop:
 	fmt.Println("send finished message")
 
 	tlsinfo.State = tcpip.ContentTypeApplicationData
-	//appData := []byte("hello\n")
-	// HTTPリクエストを作成する
-	req := tcpip.NewHttpGetRequest("/", fmt.Sprintf("%s:%d", LOCALIP, LOCALPORT))
-	appData := req.ReqtoByteArr(req)
+
+	// HTTP2 リクエストを作成する
+	// Magic, Settings, Window_update
+	appData := tcpip.CreateFirstFrametoServer()
 	appData = append(appData, tcpip.ContentTypeApplicationData)
 	encAppData := tcpip.EncryptChacha20(appData, tlsinfo)
 
-	// HTTPSリクエストを送る
+	// h2リクエストを送る
 	syscall.Write(sock, encAppData)
 	tlsinfo.ClientAppSeq++
 
-	fmt.Println("send Application data")
+	// Header Frameを作成して送る
+	headerFrame := tcpip.CreateHeaderFrame()
+	headerFrame = append(headerFrame, tcpip.ContentTypeApplicationData)
+	encHeaderFrame := tcpip.EncryptChacha20(headerFrame, tlsinfo)
+
+	// h2リクエストを送る
+	syscall.Write(sock, encHeaderFrame)
+	tlsinfo.ClientAppSeq++
+
+	fmt.Println("send Http2 Magic frame and Header frame")
 	for {
 		recvBuf := make([]byte, 2000)
 		_, _, err := syscall.Recvfrom(sock, recvBuf, 0)
@@ -168,8 +165,8 @@ exit_loop:
 		if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeAlert}) {
 			break
 		} else if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeApplicationData}) {
-			fmt.Printf("\nplaintext is %s\n", string(plaintext[0:len(plaintext)-1]))
-			//break
+			fmt.Printf("plaintext byte is %x\n", plaintext[0:len(plaintext)-1])
+			tcpip.ParseHttp2Packet(plaintext[0 : len(plaintext)-1])
 		}
 		tlsinfo.ServerAppSeq++
 	}
