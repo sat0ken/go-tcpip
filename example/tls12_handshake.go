@@ -26,7 +26,7 @@ func main() {
 	var tlsinfo tcpip.TLSInfo
 	var hello tcpip.ClientHello
 	var hellobyte []byte
-	tlsinfo, hellobyte = hello.NewClientHello(tcpip.TLS1_2)
+	tlsinfo, hellobyte = hello.NewClientHello(tcpip.TLS1_2, false)
 	syscall.Write(sock, hellobyte)
 
 	fmt.Printf("client random : %x\n", tlsinfo.MasterSecretInfo.ClientRandom)

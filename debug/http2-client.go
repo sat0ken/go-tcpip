@@ -25,7 +25,7 @@ func main() {
 	}
 
 	client := &http.Client{Transport: tr}
-	resp, _ := client.Get("https://127.0.0.1:18443")
+	resp, _ := client.Get("https://127.0.0.1:8443")
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

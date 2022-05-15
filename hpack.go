@@ -188,6 +188,7 @@ func DecodeHttp2Header(headerByte []byte) []Http2Header {
 
 	for i := 0; i < len(headerByte); i++ {
 		binstr := fmt.Sprintf("%08b", headerByte[i])
+		//fmt.Printf("i is %d, binstr is %s\n", i, binstr)
 		if strings.HasPrefix(binstr, "1") {
 			// インデックスヘッダフィールド表現(1で始まる)
 			// 残り7bitを10進数にする
@@ -195,7 +196,6 @@ func DecodeHttp2Header(headerByte []byte) []Http2Header {
 			http2Header = append(http2Header, StaticHttp2Table[d-1])
 		} else if strings.HasPrefix(binstr, "01") {
 			var header Http2Header
-
 			// インデックス更新を伴うリテラルヘッダフィールド（01で始まる）
 			// Httpヘッダ名をIndex番号で取得
 			d, _ := strconv.ParseInt(binstr[2:], 2, 8)
@@ -209,6 +209,28 @@ func DecodeHttp2Header(headerByte []byte) []Http2Header {
 				http2Header = append(http2Header, header)
 				// 次のヘッダが始まる位置にiを進める
 				i = i + 1 + int(d)
+			}
+		} else if binstr == "00000000" {
+
+			binstr = fmt.Sprintf("%08b", headerByte[i+1])
+			if binstr[0:1] == "1" {
+				// Name Stringを処理する
+				d, _ := strconv.ParseInt(binstr[1:], 2, 8)
+				nameString := HuffmanDecode(headerByte[i+2 : i+2+int(d)])
+				// Name Valueを処理する
+				i = i + 2 + int(d)
+				binstr = fmt.Sprintf("%08b", headerByte[i])
+				d, _ = strconv.ParseInt(binstr[1:], 2, 8)
+				nameValue := HuffmanDecode(headerByte[i+1 : i+1+int(d)])
+
+				// incrementする
+				i += int(d)
+
+				http2Header = append(http2Header, Http2Header{
+					Name:  nameString,
+					Value: nameValue,
+				})
+
 			}
 		}
 	}

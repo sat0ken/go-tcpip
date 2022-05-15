@@ -37,7 +37,7 @@ func main() {
 
 	var hello tcpip.ClientHello
 	// ClientHelloメッセージを作成
-	tlsinfo, hellobyte := hello.NewClientHello(tcpip.TLS1_3)
+	tlsinfo, hellobyte := hello.NewClientHello(tcpip.TLS1_3, false)
 	// メッセージを送信
 	syscall.Write(sock, hellobyte)
 

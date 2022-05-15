@@ -17,7 +17,7 @@ import (
 func main() {
 
 	sock := tcpip.NewSockStreemSocket()
-	addr := tcpip.SetSockAddrInet4(tcpip.Iptobyte("127.0.0.1"), 18443)
+	addr := tcpip.SetSockAddrInet4(tcpip.Iptobyte("127.0.0.1"), 8443)
 	err := syscall.Connect(sock, &addr)
 	if err != nil {
 		log.Fatalf("connect err : %v\n", err)
@@ -70,7 +70,7 @@ exit_loop:
 	for _, v := range hanshake {
 		if len(v) != 0 {
 			v = append([]byte{0x17, 0x03, 0x03}, v...)
-			length := binary.BigEndian.Uint16(v[3:5]) + 5
+			length = binary.BigEndian.Uint16(v[3:5]) + 5
 
 			plaintext := tcpip.DecryptChacha20(v[0:length], tlsinfo)
 			i := tcpip.ParseTLSHandshake(plaintext[0:len(plaintext)-1], tcpip.TLS1_3)
@@ -153,36 +153,85 @@ exit_loop:
 	tlsinfo.ClientAppSeq++
 
 	fmt.Println("send Http2 Magic frame and Header frame")
+
+exit_loop2:
 	for {
 		recvBuf := make([]byte, 2000)
-		_, _, err := syscall.Recvfrom(sock, recvBuf, 0)
+		n, _, err := syscall.Recvfrom(sock, recvBuf, 0)
 		if err != nil {
 			log.Fatalf("read err : %v", err)
 		}
-		length := binary.BigEndian.Uint16(recvBuf[3:5])
-		plaintext := tcpip.DecryptChacha20(recvBuf[0:length+5], tlsinfo)
-		// Alert(Close notify)が来たらbreakして終了
-		if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeAlert}) {
-			break
-		} else if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeApplicationData}) {
-			fmt.Printf("plaintext byte is %x\n", plaintext[0:len(plaintext)-1])
-			tcpip.ParseHttp2Packet(plaintext[0 : len(plaintext)-1])
+		recvBuf = recvBuf[0:n]
+
+		sepBuf := bytes.Split(recvBuf, []byte{0x17, 0x03, 0x03})
+		for _, tlspacket := range sepBuf[1:] {
+			length = binary.BigEndian.Uint16(tlspacket[0:2])
+			// Splitで失ってしまった3byteを戻す
+			b := []byte{0x17, 0x03, 0x03}
+			b = append(b, tlspacket...)
+			// 復号化する
+			plaintext := tcpip.DecryptChacha20(b, tlsinfo)
+			if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeAlert}) {
+				break exit_loop2
+			} else if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeApplicationData}) {
+				// plaintext[len(plaintext)-1:] = 5.2. Record Payload Protection TLSInnerPlaintext.typeの値
+				fmt.Printf("plaintext byte is %x\n", plaintext[0:len(plaintext)-1])
+				frame := tcpip.ParseHttp2Packet(plaintext[0 : len(plaintext)-1])
+				for _, v := range frame {
+					if v.Type == tcpip.FrameTypeHeaders {
+						for _, v := range v.Frame.([]tcpip.Http2Header) {
+							if v.Name == ":status" {
+								fmt.Printf("Http status code is %s\n", v.Value)
+							}
+						}
+					} else if v.Type == tcpip.FrameTypeData {
+						fmt.Printf("Data is %s\n", v.Frame.([]byte))
+						break exit_loop2
+					}
+				}
+			}
+			tlsinfo.ServerAppSeq++
 		}
-		tlsinfo.ServerAppSeq++
+
+		//length = binary.BigEndian.Uint16(recvBuf[3:5])
+		//plaintext := tcpip.DecryptChacha20(recvBuf[0:length+5], tlsinfo)
+		//// Alert(Close notify)が来たらbreakして終了
+		//if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeAlert}) {
+		//	break
+		//} else if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeApplicationData}) {
+		//	// plaintext[len(plaintext)-1:] = 5.2. Record Payload Protection TLSInnerPlaintext.typeの値
+		//	fmt.Printf("plaintext byte is %x\n", plaintext[0:len(plaintext)-1])
+		//	frame := tcpip.ParseHttp2Packet(plaintext[0 : len(plaintext)-1])
+		//	for _, v := range frame {
+		//		if v.Type == tcpip.FrameTypeHeaders {
+		//			for _, v := range v.Frame.([]tcpip.Http2Header) {
+		//				if v.Name == ":status" {
+		//					fmt.Printf("Http status code is %s\n", v.Value)
+		//				}
+		//			}
+		//		} else if v.Type == tcpip.FrameTypeData {
+		//			fmt.Printf("Data is %s\n", v.Frame.([]byte))
+		//			break exit_loop2
+		//		}
+		//	}
+		//}
+		//tlsinfo.ServerAppSeq++
 	}
 
-	//closeNotify := encryptChacha20(strtoByte("010015"), tlsinfo)
+	fmt.Println("Http2 Connection is close...")
+
+	closeNotify := tcpip.EncryptChacha20([]byte{0x01, 0x00, 0x15}, tlsinfo)
 	//// Close notifyで接続終了する
-	//syscall.Write(sock, closeNotify)
-	//fmt.Println("send close notify")
-	//for {
-	//	recvBuf := make([]byte, 2000)
-	//	n, _, err := syscall.Recvfrom(sock, recvBuf, 0)
-	//	if err != nil {
-	//		log.Fatalf("read err : %v", err)
-	//	}
-	//	fmt.Printf("%x\n", recvBuf[0:n])
-	//	break
-	//}
+	syscall.Write(sock, closeNotify)
+	fmt.Println("send close notify")
+	for {
+		recvBuf := make([]byte, 2000)
+		n, _, err := syscall.Recvfrom(sock, recvBuf, 0)
+		if err != nil {
+			log.Fatalf("read err : %v", err)
+		}
+		fmt.Printf("%x\n", recvBuf[0:n])
+		break
+	}
 
 }

@@ -248,29 +248,55 @@ func getServerSettings(packet []byte) (frames []SettingsFrame) {
 	return frames
 }
 
-func parseHTTP2Frame(packet []byte) {
+type ParsedHttp2Frame struct {
+	Type  int
+	Frame interface{}
+}
+
+func parseHTTP2Frame(packet []byte) ParsedHttp2Frame {
+	var frame ParsedHttp2Frame
+
 	frameType := packet[3:4]
 	//flags := packet[4:5]
 	si := packet[5:9]
 
 	switch int(frameType[0]) {
 	case FrameTypeSettings:
-		getServerSettings(packet[9:])
+		frame = ParsedHttp2Frame{
+			Type:  FrameTypeSettings,
+			Frame: getServerSettings(packet[9:]),
+		}
 	case FrameTypeWindowUpdate:
 		updateFrame := WindowsUpdateFrame{
 			StreamIdentifier:     si,
 			WindowsSizeIncrement: packet[9:],
 		}
+
+		frame = ParsedHttp2Frame{
+			Type:  FrameTypeWindowUpdate,
+			Frame: updateFrame,
+		}
+
 		fmt.Printf("FrameTypeWindowUpdate : %+v\n", updateFrame)
 	case FrameTypeHeaders:
 		headers := DecodeHttp2Header(packet[9:])
+		frame = ParsedHttp2Frame{
+			Type:  FrameTypeHeaders,
+			Frame: headers,
+		}
 		fmt.Printf("FrameTypeHeaders : %+v\n", headers)
 	case FrameTypeData:
+		frame = ParsedHttp2Frame{
+			Type:  FrameTypeData,
+			Frame: packet[9:],
+		}
 		fmt.Printf("FrameTypeData : %s\n", packet[9:])
 	}
+
+	return frame
 }
 
-func ParseHttp2Packet(packet []byte) {
+func ParseHttp2Packet(packet []byte) (http2Frames []ParsedHttp2Frame) {
 	// Lengthが0, Flagsが1, ACKS=trueだったらSkipする
 	if bytes.Equal(packet[0:3], []byte{0x00, 0x00, 0x00}) {
 		fmt.Println("Recv ACK for Settings")
@@ -278,16 +304,20 @@ func ParseHttp2Packet(packet []byte) {
 	}
 
 	totalLen := len(packet)
+	//fmt.Println("totalLen is ", totalLen)
 
 	for i := 0; i < len(packet); i++ {
 		length := sum3BytetoLength(packet[i : i+3])
-		parseHTTP2Frame(packet[i : i+int(length)+9])
+		//fmt.Printf("i is %d, length is %d\n", i, length)
+		//fmt.Printf("parse packet is %x\n", packet[i:i+int(length)+9])
+		frame := parseHTTP2Frame(packet[i : i+int(length)+9])
+		http2Frames = append(http2Frames, frame)
 		// Frameが続いてるならiをインクリメントして次のFrameに進める
 		if i+int(length)+9 < totalLen {
-			i = (int(length) + 9) - 1
+			i += (int(length) + 9) - 1
 		} else {
 			break
 		}
 	}
-
+	return http2Frames
 }
