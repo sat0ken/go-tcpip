@@ -175,7 +175,6 @@ exit_loop2:
 				break exit_loop2
 			} else if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeApplicationData}) {
 				// plaintext[len(plaintext)-1:] = 5.2. Record Payload Protection TLSInnerPlaintext.typeの値
-				fmt.Printf("plaintext byte is %x\n", plaintext[0:len(plaintext)-1])
 				frame := tcpip.ParseHttp2Packet(plaintext[0 : len(plaintext)-1])
 				for _, v := range frame {
 					if v.Type == tcpip.FrameTypeHeaders {
@@ -192,30 +191,6 @@ exit_loop2:
 			}
 			tlsinfo.ServerAppSeq++
 		}
-
-		//length = binary.BigEndian.Uint16(recvBuf[3:5])
-		//plaintext := tcpip.DecryptChacha20(recvBuf[0:length+5], tlsinfo)
-		//// Alert(Close notify)が来たらbreakして終了
-		//if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeAlert}) {
-		//	break
-		//} else if bytes.Equal(plaintext[len(plaintext)-1:], []byte{tcpip.ContentTypeApplicationData}) {
-		//	// plaintext[len(plaintext)-1:] = 5.2. Record Payload Protection TLSInnerPlaintext.typeの値
-		//	fmt.Printf("plaintext byte is %x\n", plaintext[0:len(plaintext)-1])
-		//	frame := tcpip.ParseHttp2Packet(plaintext[0 : len(plaintext)-1])
-		//	for _, v := range frame {
-		//		if v.Type == tcpip.FrameTypeHeaders {
-		//			for _, v := range v.Frame.([]tcpip.Http2Header) {
-		//				if v.Name == ":status" {
-		//					fmt.Printf("Http status code is %s\n", v.Value)
-		//				}
-		//			}
-		//		} else if v.Type == tcpip.FrameTypeData {
-		//			fmt.Printf("Data is %s\n", v.Frame.([]byte))
-		//			break exit_loop2
-		//		}
-		//	}
-		//}
-		//tlsinfo.ServerAppSeq++
 	}
 
 	fmt.Println("Http2 Connection is close...")

@@ -122,7 +122,12 @@ type HeadersFrame struct {
 	Http2Headers         []Http2Header
 }
 
-func createPrism() (prism []byte) {
+type ParsedHttp2Frame struct {
+	Type  int
+	Frame interface{}
+}
+
+func createConnectionPreface() (prism []byte) {
 	str := fmt.Sprintf("%x", StreamMagic)
 
 	for i, _ := range str {
@@ -135,7 +140,7 @@ func createPrism() (prism []byte) {
 	return prism
 }
 
-func createHeaders() Http2Frame {
+func createSettings() Http2Frame {
 
 	// EnablePushをセット
 	headers := toByteArr(SettingsFrame{
@@ -167,17 +172,20 @@ func createHeaders() Http2Frame {
 func CreateFirstFrametoServer() []byte {
 	var packet []byte
 
-	stream := createPrism()
-	frame := createHeaders()
+	preface := createConnectionPreface()
+	frame := createSettings()
 	update := Http2Frame{
-		Length:           UintTo3byte(4),
-		Type:             []byte{FrameTypeWindowUpdate},
-		Flags:            []byte{0x00},
+		Length: UintTo3byte(4),
+		Type:   []byte{FrameTypeWindowUpdate},
+		Flags:  []byte{0x00},
+		// 最初なのでストリーム番号は0
 		StreamIdentifier: []byte{0x00, 0x00, 0x00, 0x00},
-		Value:            []byte{0x40, 0x00, 0x00, 0x00},
+		// Windows Size Increment
+		Value: []byte{0x40, 0x00, 0x00, 0x00},
 	}
 
-	packet = append(packet, stream...)
+	// パケットデータにする
+	packet = append(packet, preface...)
 	packet = append(packet, toByteArr(frame)...)
 	packet = append(packet, toByteArr(update)...)
 
@@ -195,11 +203,14 @@ func CreateHeaderFrame() []byte {
 	headers = append(headers, CreateHttp2Header("user-agent", "Go-http-client/2.0")...)
 
 	headerFrame := Http2Frame{
-		Length:           UintTo3byte(uint32(len(headers))),
-		Type:             []byte{FrameTypeHeaders},
-		Flags:            []byte{0x05},
+		Length: UintTo3byte(uint32(len(headers))),
+		Type:   []byte{FrameTypeHeaders},
+		// End HeadersとStreamがTrueなので5をセット
+		Flags: []byte{0x05},
+		// ストリーム番号は1になる
 		StreamIdentifier: []byte{0x00, 0x00, 0x00, 0x01},
-		Value:            headers,
+		// ヘッダを値としてセット
+		Value: headers,
 	}
 
 	return toByteArr(headerFrame)
@@ -246,11 +257,6 @@ func getServerSettings(packet []byte) (frames []SettingsFrame) {
 	}
 	fmt.Printf("FrameTypeSettings is %+v\n", frames)
 	return frames
-}
-
-type ParsedHttp2Frame struct {
-	Type  int
-	Frame interface{}
 }
 
 func parseHTTP2Frame(packet []byte) ParsedHttp2Frame {
@@ -304,12 +310,9 @@ func ParseHttp2Packet(packet []byte) (http2Frames []ParsedHttp2Frame) {
 	}
 
 	totalLen := len(packet)
-	//fmt.Println("totalLen is ", totalLen)
 
 	for i := 0; i < len(packet); i++ {
 		length := sum3BytetoLength(packet[i : i+3])
-		//fmt.Printf("i is %d, length is %d\n", i, length)
-		//fmt.Printf("parse packet is %x\n", packet[i:i+int(length)+9])
 		frame := parseHTTP2Frame(packet[i : i+int(length)+9])
 		http2Frames = append(http2Frames, frame)
 		// Frameが続いてるならiをインクリメントして次のFrameに進める
@@ -319,5 +322,6 @@ func ParseHttp2Packet(packet []byte) (http2Frames []ParsedHttp2Frame) {
 			break
 		}
 	}
+
 	return http2Frames
 }

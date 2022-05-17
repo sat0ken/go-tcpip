@@ -207,7 +207,7 @@ func DecodeHttp2Header(headerByte []byte) []Http2Header {
 				d, _ := strconv.ParseInt(binstr[1:], 2, 8)
 				header.Value = HuffmanDecode(headerByte[i+2 : i+2+int(d)])
 				http2Header = append(http2Header, header)
-				// 次のヘッダが始まる位置にiを進める
+				// 次のヘッダが始まる位置にiを進めるためにインクリメント
 				i = i + 1 + int(d)
 			}
 		} else if binstr == "00000000" {
@@ -223,7 +223,7 @@ func DecodeHttp2Header(headerByte []byte) []Http2Header {
 				d, _ = strconv.ParseInt(binstr[1:], 2, 8)
 				nameValue := HuffmanDecode(headerByte[i+1 : i+1+int(d)])
 
-				// incrementする
+				// 次のヘッダが始まる位置にiを進めるためにインクリメント
 				i += int(d)
 
 				http2Header = append(http2Header, Http2Header{
@@ -260,15 +260,30 @@ func CreateHttp2Header(name, value string) (headerByte []byte) {
 
 	if name == "" {
 		// インデックスヘッダフィールド表現(1で始まる)
+		// 0   1   2   3   4   5   6   7
+		// +---+---+---+---+---+---+---+---+
+		// | 1 |        Index (7+)         |
+		// +---+---------------------------+
+
 		index := getHttp2HeaderIndexByValue(value)
 		headerIndex, _ := strconv.ParseUint(fmt.Sprintf("1%07b", index+1), 2, 8)
 		headerByte = append(headerByte, byte(headerIndex))
+
 	} else {
 		// インデックス更新を伴うリテラルヘッダフィールド（01で始まる）
+		// 0   1   2   3   4   5   6   7
+		// +---+---+---+---+---+---+---+---+
+		// | 0 | 1 |      Index (6+)       |
+		// +---+---+-----------------------+
+		// | H |     Value Length (7+)     |
+		// +---+---------------------------+
+		// | Value String (Length octets)  |
+		// +-------------------------------+
+
 		index := getHttp2HeaderIndexByName(name)
 		headerIndex, _ := strconv.ParseUint(fmt.Sprintf("01%06b", index+1), 2, 8)
 
-		// Huffman codignを意味する1のbitとcodingされたLengthを意味する7bit
+		// Huffman codingを意味する1のbitとcodingされたLengthを意味する7bit
 		encodeVal := HuffmanEncode(value)
 		headerVal, _ := strconv.ParseUint(fmt.Sprintf("1%07b", len(encodeVal)), 2, 8)
 
