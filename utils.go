@@ -109,6 +109,11 @@ func strtoByte(str string) []byte {
 	return b
 }
 
+func StrtoByte(str string) []byte {
+	b, _ := hex.DecodeString(str)
+	return b
+}
+
 func ReadClientCertificate() tls.Certificate {
 	cert, err := tls.LoadX509KeyPair("debug/client.pem", "debug/client-key.pem")
 	if err != nil {
