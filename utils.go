@@ -43,6 +43,10 @@ func getLocalIpAddr(ifname string) (localif LocalIpMacAddr, err error) {
 	return localif, nil
 }
 
+func GetLocalInterface(ifname string) (localif LocalIpMacAddr, err error) {
+	return getLocalIpAddr(ifname)
+}
+
 // https://www.ipa.go.jp/security/rfc/RFC5246-08JA.html
 func randomByte(num int) []byte {
 	b := make([]byte, num)
@@ -138,4 +142,13 @@ func (zeroSource) Read(b []byte) (n int, err error) {
 	}
 
 	return len(b), nil
+}
+
+func extendArrByZero(data []byte, to int) []byte {
+	var extend []byte
+	for i := 0; i < to-len(data); i++ {
+		extend = append(extend, 0x00)
+	}
+	extend = append(extend, data...)
+	return extend
 }

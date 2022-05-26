@@ -1,5 +1,18 @@
 package tcpip
 
+const (
+	QuicFrameTypeCrypto = 0x06
+)
+
+type QuicKeyBlock struct {
+	ClientKey              []byte
+	ClientIV               []byte
+	ClientHeaderProtection []byte
+	ServerKey              []byte
+	ServerIV               []byte
+	ServerHeaderProtection []byte
+}
+
 type FrameInfo struct {
 	HeaderForm         string
 	FixedBit           string
@@ -20,4 +33,11 @@ type InitialPacket struct {
 	Length             []byte
 	PacketNumber       []byte
 	Payload            []byte
+}
+
+type QuicCryptoFrame struct {
+	Type   []byte
+	Offset []byte
+	Length []byte
+	Data   []byte
 }

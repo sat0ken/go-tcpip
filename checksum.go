@@ -97,3 +97,15 @@ func checksum(sum uint) []byte {
 	val := sum - (sum>>16)<<16 + (sum >> 16) ^ 0xffff
 	return UintTo2byte(uint16(val))
 }
+
+func SumbyteArr(arr []byte) uint {
+	return sumByteArr(arr)
+}
+
+func CalcChecksum(sum uint) []byte {
+	return checksum(sum)
+}
+
+func ToPacket(value interface{}) []byte {
+	return toByteArr(value)
+}

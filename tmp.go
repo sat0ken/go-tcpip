@@ -168,7 +168,7 @@ func _() {
 	sendfd := NewTCPSocket()
 	defer syscall.Close(sendfd)
 	fmt.Printf("Send SYN packet to %s\n", dest)
-	ack, err := startTCPConnection(sendfd, syn)
+	ack, err := StartTCPConnection(sendfd, syn)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -363,4 +363,21 @@ func tls13_keyschedule() {
 
 	sharedkey, _ := curve25519.X25519(clientPrivateKey, serverPublickKey)
 	KeyscheduleToMasterSecret(sharedkey, clientserverhello)
+}
+
+func huffman() {
+	//dstConnectionID := []byte{0x83, 0x94, 0xC8, 0xF0, 0x3E, 0x51, 0x57, 0x08}
+	//tcpip.CreateQuicInitialSecret(dstConnectionID)
+
+	//packet, _ := hex.DecodeString("887689aa6355e580ae20aee76196dd6d5f4a05b5340fd2820084a003700d5c6dd53168df5f87497ca589d34d1f5c033631356c96df697e94136a651d4a080212816ee019b8d894c5a37f00832a47378bfe5c0ca0085b796138eff3008919085ad2b583aa62a3848fd24a8f")
+	//header := tcpip.DecodeHttp2Header(packet)
+	//fmt.Printf("%+v\n", header)
+
+	//b, _ := hex.DecodeString("00832a47378bfe5c0ca0085b796138eff3008919085ad2b583aa62a3848fd24a8f")
+	//b, _ := hex.DecodeString("008919085ad2b583aa62a3848fd24a8f")
+	//tcpip.DecodeHttp2Header(b)
+	//decode := tcpip.HuffmanDecode(b)
+	//encode := tcpip.HuffmanEncode("\"61f01158-267\"")
+	//fmt.Printf("%s\n", decode)
+	//fmt.Printf("%x\n", encode)
 }

@@ -67,7 +67,7 @@ func startConnectionFromEth(sendfd int, tcpip TCPIP) (TCPIP, error) {
 
 }
 
-func startTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
+func StartTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
 
 	synPacket := NewTCPIP(tcpip)
 	destIp := Iptobyte(tcpip.DestIP)
@@ -107,7 +107,7 @@ func startTCPConnection(sendfd int, tcpip TCPIP) (TCPIP, error) {
 	return ack, nil
 }
 
-func sendNginx(sendfd int, tcpip TCPIP) {
+func SendToNginx(sendfd int, tcpip TCPIP) {
 	pshPacket := NewTCPIP(tcpip)
 	destIp := Iptobyte(tcpip.DestIP)
 	destPort := UintTo2byte(tcpip.DestPort)
