@@ -9,20 +9,6 @@ import (
 	"strconv"
 )
 
-var initialSalt = []byte{
-	0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3, 0x4d, 0x17,
-	0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad, 0xcc, 0xbb, 0x7f, 0x0a,
-}
-
-// 固定のラベル
-var clientInitialLabel = []byte(`client in`)
-var serverInitialLabel = []byte(`server in`)
-var quicKeyLabel = []byte(`quic key`)
-var quicIVLabel = []byte(`quic iv`)
-
-// hp is for header protection
-var quicHPLabel = []byte(`quic hp`)
-
 func CreateQuicInitialSecret(dstConnId []byte) QuicKeyBlock {
 
 	initSecret := hkdfExtract(dstConnId, initialSalt)
@@ -40,39 +26,43 @@ func CreateQuicInitialSecret(dstConnId []byte) QuicKeyBlock {
 }
 
 // QUICパケットをパースする
-func ParseRawQuicPacket(packet []byte, protected bool) interface{} {
-	var i interface{}
+func ParseRawQuicPacket(packet []byte, protected bool) (rawpacket QuicRawPacket) {
+
 	p0 := fmt.Sprintf("%08b", packet[0])
 	switch p0[2:4] {
 	case "00":
-		finfo := FrameInfo{
-			HeaderForm:         p0[0:1],
-			FixedBit:           p0[1:2],
-			PacketType:         p0[2:4],
-			Reserved:           p0[4:6],
-			PacketNumberLegnth: p0[6:],
-		}
+		//finfo := FrameInfo{
+		//	HeaderForm:         p0[0:1],
+		//	FixedBit:           p0[1:2],
+		//	PacketType:         p0[2:4],
+		//	Reserved:           p0[4:6],
+		//	PacketNumberLegnth: p0[6:],
+		//}
 
-		initPacket := InitialPacket{
-			FrameInfo:        finfo,
+		commonHeader := QuicLongCommonHeader{
+			FrameByte:        packet[0:1],
 			Version:          packet[1:5],
 			DestConnIDLength: packet[5:6],
 		}
-		initPacket.DestConnID = packet[6 : 6+int(initPacket.DestConnIDLength[0])]
+		commonHeader.DestConnID = packet[6 : 6+int(commonHeader.DestConnIDLength[0])]
 		// packetを縮める
-		packet = packet[6+int(initPacket.DestConnIDLength[0]):]
+		packet = packet[6+int(commonHeader.DestConnIDLength[0]):]
 
 		// SourceID Connection Lengthが0なら
 		if bytes.Equal(packet[0:1], []byte{0x00}) {
-			initPacket.SourceConnIDLength = packet[0:1]
+			commonHeader.SourceConnIDLength = packet[0:1]
 			// packetを縮める
 			packet = packet[1:]
 		} else {
-			initPacket.SourceConnIDLength = packet[0:1]
-			initPacket.SourceConnID = packet[:1+int(initPacket.SourceConnID[0])]
+			commonHeader.SourceConnIDLength = packet[0:1]
+			commonHeader.SourceConnID = packet[:1+int(commonHeader.SourceConnID[0])]
 			// packetを縮める
-			packet = packet[1+int(initPacket.SourceConnID[0]):]
+			packet = packet[1+int(commonHeader.SourceConnID[0]):]
 		}
+
+		// 共通ヘッダの処理はここまで
+		// ここからInitialパケットの処理
+		var initPacket InitialPacket
 
 		// Token Lengthが0なら
 		if bytes.Equal(packet[0:1], []byte{0x00}) {
@@ -96,19 +86,23 @@ func ParseRawQuicPacket(packet []byte, protected bool) interface{} {
 			initPacket.Payload = packet[6:]
 		}
 
-		i = initPacket
+		rawpacket = QuicRawPacket{
+			QuicHeader: commonHeader,
+			QuicFrames: []interface{}{initPacket},
+		}
 
 	case "10":
 		fmt.Println("Handshake Packet")
 	}
-	return i
+
+	return rawpacket
 }
 
 // ヘッダ保護を解除したパケットにする
-func ToUnprotecdQuicPacket(initpacket InitialPacket, packet []byte, keyblock QuicKeyBlock) []byte {
+func QuicPacketToUnprotect(commonHeader QuicLongCommonHeader, initpacket InitialPacket, packet []byte, keyblock QuicKeyBlock) []byte {
 	// https://tex2e.github.io/blog/protocol/quic-initial-packet-decrypt
 	// 5.4.2. ヘッダー保護のサンプル
-	pnOffset := 7 + len(initpacket.DestConnID) + len(initpacket.SourceConnID) + len(initpacket.Length)
+	pnOffset := 7 + len(commonHeader.DestConnID) + len(commonHeader.SourceConnID) + len(initpacket.Length)
 	pnOffset += len(initpacket.Token) + len(initpacket.TokenLength)
 	sampleOffset := pnOffset + 4
 
@@ -121,6 +115,7 @@ func ToUnprotecdQuicPacket(initpacket InitialPacket, packet []byte, keyblock Qui
 	encsample := make([]byte, len(sample))
 	block.Encrypt(encsample, sample)
 
+	// 保護されているヘッダの最下位4bitを解除する
 	packet[0] ^= encsample[0] & 0x0f
 	pnlength := (packet[0] & 0x03) + 1
 
@@ -134,6 +129,29 @@ func ToUnprotecdQuicPacket(initpacket InitialPacket, packet []byte, keyblock Qui
 		packet[pnOffset+i] = a[i]
 	}
 	return packet
+}
+
+func QuicHeaderToProtect(header, sample, hp []byte) {
+	block, err := aes.NewCipher(hp)
+	if err != nil {
+		log.Fatalf("ヘッダ保護エラー : %v\n", err)
+	}
+	mask := make([]byte, len(sample))
+	block.Encrypt(mask, sample)
+
+	// ヘッダの最初のバイトを保護
+	header[0] ^= mask[0] & 0x0f
+
+	a := header[18:22]
+	b := mask[1:5]
+	for i, _ := range a {
+		a[i] ^= b[i]
+	}
+	// パケット番号をセットして保護する
+	for i, _ := range a {
+		header[18+i] = a[i]
+	}
+	fmt.Printf("header is %x\n", header)
 }
 
 func DecryptQuicPayload(packetNumber, header, payload []byte, keyblock QuicKeyBlock) []byte {
@@ -154,6 +172,21 @@ func DecryptQuicPayload(packetNumber, header, payload []byte, keyblock QuicKeyBl
 	return plaintext
 }
 
+func EncryptQuicPayload(packetNumber, header, payload []byte, keyblock QuicKeyBlock) []byte {
+	// パケット番号で12byteのnonceにする
+	packetnum := extendArrByZero(packetNumber, len(keyblock.ClientIV))
+	// clientivとxorする
+	for i, _ := range packetnum {
+		packetnum[i] ^= keyblock.ClientIV[i]
+	}
+	// AES-128-GCMで暗号化する
+	block, _ := aes.NewCipher(keyblock.ClientKey)
+	aesgcm, _ := cipher.NewGCM(block)
+	encryptedMessage := aesgcm.Seal(nil, packetnum, payload, header)
+
+	return encryptedMessage
+}
+
 // 復号化されたQUICパケットのフレームをパースする
 func ParseQuicFrame(packet []byte) (i interface{}) {
 	switch packet[0] {
@@ -169,19 +202,62 @@ func ParseQuicFrame(packet []byte) (i interface{}) {
 	return i
 }
 
-func NewInitialPacket(finfo FrameInfo) []byte {
-	var packet []byte
+func NewInitialPacket() QuicRawPacket {
+	//var packet []byte
+	//
+	//infostr := finfo.HeaderForm
+	//infostr += finfo.FixedBit
+	//infostr += finfo.PacketType
+	//infostr += finfo.Reserved
+	//infostr += finfo.PacketNumberLegnth
+	//
+	//header0, _ := strconv.ParseUint(infostr, 2, 8)
 
-	infostr := finfo.HeaderForm
-	infostr += finfo.FixedBit
-	infostr += finfo.PacketType
-	infostr += finfo.Reserved
-	infostr += finfo.PacketNumberLegnth
+	commonHeader := QuicLongCommonHeader{
+		FrameByte:          []byte{0xc3},
+		Version:            []byte{0x00, 0x00, 0x00, 0x01},
+		DestConnIDLength:   []byte{0x08},
+		DestConnID:         strtoByte("8394C8F03E515708"),
+		SourceConnIDLength: []byte{0x00},
+	}
 
-	header0, _ := strconv.ParseUint(infostr, 2, 8)
+	return QuicRawPacket{
+		QuicHeader: commonHeader,
+		QuicFrames: []interface{}{
+			InitialPacket{
+				TokenLength:  []byte{0x00},
+				PacketNumber: []byte{0x00, 0x00, 0x00, 0x02},
+			},
+		},
+	}
+}
 
-	packet = append(packet, byte(header0))
-	packet = append(packet, byte(header0))
+// RFC9000 A.1. サンプル可変長整数デコード
+func DecodeVariableInt(plength []int) []byte {
+	v := plength[0]
+	prefix := v >> 6
+	length := 1 << prefix
 
-	return packet
+	v = v & 0x3f
+	for i := 0; i < length-1; i++ {
+		v = (v << 8) + plength[1]
+	}
+	//fmt.Printf("%x %d\n", v, v)
+	return UintTo2byte(uint16(v))
+}
+
+func EncodeVariableInt(length int) []byte {
+	var enc uint64
+	s := fmt.Sprintf("%b", length)
+	if length <= 16383 {
+		var zero string
+		//0-16383は14bitなので足りないbitは0で埋める
+		padding := 14 - len(s)
+		for i := 0; i < padding; i++ {
+			zero += "0"
+		}
+		// 2MSBは01で始める
+		enc, _ = strconv.ParseUint(fmt.Sprintf("01%s%s", zero, s), 2, 16)
+	}
+	return UintTo2byte(uint16(enc))
 }
