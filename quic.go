@@ -131,7 +131,7 @@ func QuicPacketToUnprotect(commonHeader QuicLongCommonHeader, initpacket Initial
 	return packet
 }
 
-func QuicHeaderToProtect(header, sample, hp []byte) {
+func QuicHeaderToProtect(header, sample, hp []byte) []byte {
 	block, err := aes.NewCipher(hp)
 	if err != nil {
 		log.Fatalf("ヘッダ保護エラー : %v\n", err)
@@ -151,7 +151,7 @@ func QuicHeaderToProtect(header, sample, hp []byte) {
 	for i, _ := range a {
 		header[18+i] = a[i]
 	}
-	fmt.Printf("header is %x\n", header)
+	return header
 }
 
 func DecryptQuicPayload(packetNumber, header, payload []byte, keyblock QuicKeyBlock) []byte {
@@ -246,6 +246,8 @@ func DecodeVariableInt(plength []int) []byte {
 	return UintTo2byte(uint16(v))
 }
 
+// RFC9000 16. 可変長整数エンコーディング
+// 2byteのエンコードしか実装してない
 func EncodeVariableInt(length int) []byte {
 	var enc uint64
 	s := fmt.Sprintf("%b", length)

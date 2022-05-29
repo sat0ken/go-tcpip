@@ -24,19 +24,25 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("TCP Connection is success!!\n")
+	fmt.Println("TCP Connection is success!!")
 	time.Sleep(10 * time.Millisecond)
 
 	fin := tcpip.TCPIP{
 		DestIP:    dest,
 		DestPort:  port,
-		TcpFlag:   "FINACK",
+		TcpFlag:   "PSHACK",
 		SeqNumber: ack.SeqNumber,
 		AckNumber: ack.AckNumber,
+		Data:      tcpip.StrtoByte("\n"),
 	}
-	_, err = tcpip.StartTCPConnection(sendfd, fin)
+	pshPacket := tcpip.NewTCPIP(fin)
+	destIp := tcpip.Iptobyte(fin.DestIP)
+	addr := tcpip.SetSockAddrInet4(destIp, int(fin.DestPort))
+
+	// 改行コードをSSHサーバに送ってConnectionをClose
+	err = tcpip.SendIPv4Socket(sendfd, pshPacket, addr)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Send PSH packet err : %v\n", err)
 	}
-	fmt.Printf("TCP Connection Close is success!!\n")
+	fmt.Println("TCP Connection close is success !!")
 }

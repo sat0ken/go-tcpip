@@ -8,8 +8,10 @@ import (
 
 func main() {
 
+	// 各自の環境に変えてください
 	destip := "192.168.0.15"
 
+	// wlp3s0は各自の環境に変えてください
 	localif, err := tcpip.GetLocalInterface("wlp3s0")
 	if err != nil {
 		log.Fatalf("getLocalIpAddr err : %v", err)
@@ -19,12 +21,17 @@ func main() {
 	var arp tcpip.Arp
 	arp = tcpip.NewArpRequest(localif, destip)
 
+	// Ethernetのパケットを作る
+	ethframe := tcpip.NewEthernet([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, localif.LocalMacAddr, "ARP")
+
+	//
 	var sendArp []byte
 	// Ethernetのパケットを作る
-	sendArp = append(sendArp, tcpip.ToPacket(tcpip.NewEthernet([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, localif.LocalMacAddr, "ARP"))...)
+	sendArp = append(sendArp, tcpip.ToPacket(ethframe)...)
 	sendArp = append(sendArp, tcpip.ToPacket(arp)...)
 
-	// ARPを送る
+	fmt.Printf("%x\n", sendArp)
+	//// ARPを送る
 	arpreply := arp.Send(localif.Index, sendArp)
 	fmt.Printf("ARP Reply : %x\n", arpreply.SenderMacAddr)
 
