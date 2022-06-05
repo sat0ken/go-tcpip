@@ -29,7 +29,10 @@ func CreateQuicInitialSecret(dstConnId []byte) QuicKeyBlock {
 func ParseRawQuicPacket(packet []byte, protected bool) (rawpacket QuicRawPacket) {
 
 	p0 := fmt.Sprintf("%08b", packet[0])
+	// LongHeader = 1 で始まる
+	// ShortHeader = 0 で始まる
 	switch p0[2:4] {
+	// Initial Packet
 	case "00":
 		//finfo := FrameInfo{
 		//	HeaderForm:         p0[0:1],
@@ -76,10 +79,13 @@ func ParseRawQuicPacket(packet []byte, protected bool) (rawpacket QuicRawPacket)
 			packet = packet[1+int(initPacket.TokenLength[0]):]
 		}
 
+		// Length~を処理
 		if protected {
 			initPacket.Length = packet[0:2]
 			initPacket.PacketNumber = packet[2:4]
 			initPacket.Payload = packet[4:]
+			//可変長整数をデコードする
+			initPacket.Length = DecodeVariableInt([]int{int(initPacket.Length[0]), int(initPacket.Length[1])})
 		} else {
 			initPacket.Length = packet[0:2]
 			initPacket.PacketNumber = packet[2:6]
@@ -202,7 +208,7 @@ func ParseQuicFrame(packet []byte) (i interface{}) {
 	return i
 }
 
-func NewInitialPacket() QuicRawPacket {
+func NewInitialPacket(destConnID []byte) QuicRawPacket {
 	//var packet []byte
 	//
 	//infostr := finfo.HeaderForm
@@ -216,8 +222,8 @@ func NewInitialPacket() QuicRawPacket {
 	commonHeader := QuicLongCommonHeader{
 		FrameByte:          []byte{0xc3},
 		Version:            []byte{0x00, 0x00, 0x00, 0x01},
-		DestConnIDLength:   []byte{0x08},
-		DestConnID:         strtoByte("8394C8F03E515708"),
+		DestConnIDLength:   []byte{byte(len(destConnID))},
+		DestConnID:         destConnID,
 		SourceConnIDLength: []byte{0x00},
 	}
 

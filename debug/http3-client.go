@@ -4,10 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/lucas-clemente/quic-go"
+	//"github.com/lucas-clemente/quic-go"
 	"io"
 	"log"
 	"os"
+	"tcpip/debug/quic-go"
 	"tcpip/debug/utils"
 )
 

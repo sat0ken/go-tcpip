@@ -18,3 +18,4 @@ tcpip
 debug/*.pem
 tls-server
 https-server
+debug/quic-go
