@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"syscall"
 )
 
 func CreateQuicInitialSecret(dstConnId []byte) QuicKeyBlock {
@@ -34,16 +35,8 @@ func ParseRawQuicPacket(packet []byte, protected bool) (rawpacket QuicRawPacket)
 	switch p0[2:4] {
 	// Initial Packet
 	case "00":
-		//finfo := FrameInfo{
-		//	HeaderForm:         p0[0:1],
-		//	FixedBit:           p0[1:2],
-		//	PacketType:         p0[2:4],
-		//	Reserved:           p0[4:6],
-		//	PacketNumberLegnth: p0[6:],
-		//}
-
 		commonHeader := QuicLongCommonHeader{
-			FrameByte:        packet[0:1],
+			HeaderByte:       packet[0:1],
 			Version:          packet[1:5],
 			DestConnIDLength: packet[5:6],
 		}
@@ -88,8 +81,16 @@ func ParseRawQuicPacket(packet []byte, protected bool) (rawpacket QuicRawPacket)
 			initPacket.Length = DecodeVariableInt([]int{int(initPacket.Length[0]), int(initPacket.Length[1])})
 		} else {
 			initPacket.Length = packet[0:2]
-			initPacket.PacketNumber = packet[2:6]
-			initPacket.Payload = packet[6:]
+			// パケット番号長で変える
+			if bytes.Equal(packet[0:1], []byte{0xC3}) {
+				// 4byteのとき
+				initPacket.PacketNumber = packet[2:6]
+				initPacket.Payload = packet[6:]
+			} else if bytes.Equal(packet[0:1], []byte{0xC1}) {
+				// 2byteのとき
+				initPacket.PacketNumber = packet[2:4]
+				initPacket.Payload = packet[4:]
+			}
 		}
 
 		rawpacket = QuicRawPacket{
@@ -99,6 +100,30 @@ func ParseRawQuicPacket(packet []byte, protected bool) (rawpacket QuicRawPacket)
 
 	case "10":
 		fmt.Println("Handshake Packet")
+	case "11":
+		commonHeader := QuicLongCommonHeader{
+			HeaderByte: packet[0:1],
+			Version:    packet[1:5],
+		}
+		// Destination Connection Length と ID
+		if bytes.Equal(packet[5:6], []byte{0x00}) {
+			commonHeader.DestConnID = packet[5:6]
+			packet = packet[6:]
+		}
+		commonHeader.SourceConnIDLength = packet[0:1]
+		commonHeader.SourceConnID = packet[:1+int(commonHeader.SourceConnIDLength[0])]
+		// packetを縮める
+		packet = packet[1+int(commonHeader.SourceConnID[0]):]
+
+		retryPacket := RetryPacket{
+			RetryToken:         packet[0 : len(packet)-16],
+			RetryIntergrityTag: packet[len(packet)-16:],
+		}
+		fmt.Println("Parse Retry Packet, token is %x\n", retryPacket.RetryToken)
+		rawpacket = QuicRawPacket{
+			QuicHeader: commonHeader,
+			QuicFrames: []interface{}{retryPacket},
+		}
 	}
 
 	return rawpacket
@@ -164,10 +189,11 @@ func DecryptQuicPayload(packetNumber, header, payload []byte, keyblock QuicKeyBl
 	// パケット番号で12byteのnonceにする
 	packetnum := extendArrByZero(packetNumber, len(keyblock.ClientIV))
 	// clientivとxorする
-	for i, _ := range packetnum {
-		packetnum[i] ^= keyblock.ClientIV[i]
-	}
+	//for i, _ := range packetnum {
+	//	packetnum[i] ^= keyblock.ClientIV[i]
+	//}
 	fmt.Printf("%x\n", packetnum)
+	fmt.Printf("%x\n", payload)
 	// AES-128-GCMで復号化する
 	block, _ := aes.NewCipher(keyblock.ClientKey)
 	aesgcm, _ := cipher.NewGCM(block)
@@ -208,19 +234,34 @@ func ParseQuicFrame(packet []byte) (i interface{}) {
 	return i
 }
 
-func NewInitialPacket(destConnID []byte) QuicRawPacket {
-	//var packet []byte
-	//
-	//infostr := finfo.HeaderForm
-	//infostr += finfo.FixedBit
-	//infostr += finfo.PacketType
-	//infostr += finfo.Reserved
-	//infostr += finfo.PacketNumberLegnth
-	//
-	//header0, _ := strconv.ParseUint(infostr, 2, 8)
+func NewQuicLongHeader(destConnID []byte, pnum, pnumlen uint) QuicRawPacket {
+	// とりあえず2byte
+	var packetNum []byte
+	if pnumlen == 2 {
+		packetNum = UintTo2byte(uint16(pnum))
+	} else if pnumlen == 4 {
+		packetNum = UintTo4byte(uint32(pnum))
+	}
 
+	// パケット番号長が2byteの場合0xC1になる
+	// 先頭の6bitは110000, 下位の2bitがLenghtを表す
+	// 1 LongHeader
+	//  1 Fixed bit
+	//   00 Packet Type
+	//     00 Reserved
+	// 17.2. Long Header Packets
+	// That is, the length of the Packet Number field is the value of this field plus one.
+	// 生成するときは1をパケット番号長から引く、2-1は1、2bitの2進数で表すと01
+	// 11000001 = 0xC1 となる
+	var firstByte byte
+	if len(packetNum) == 2 {
+		firstByte = 0xC1
+	} else if len(packetNum) == 4 {
+		firstByte = 0xC3
+	}
+	// Headerを作る
 	commonHeader := QuicLongCommonHeader{
-		FrameByte:          []byte{0xc3},
+		HeaderByte:         []byte{firstByte},
 		Version:            []byte{0x00, 0x00, 0x00, 0x01},
 		DestConnIDLength:   []byte{byte(len(destConnID))},
 		DestConnID:         destConnID,
@@ -232,7 +273,7 @@ func NewInitialPacket(destConnID []byte) QuicRawPacket {
 		QuicFrames: []interface{}{
 			InitialPacket{
 				TokenLength:  []byte{0x00},
-				PacketNumber: []byte{0x00, 0x00, 0x00, 0x02},
+				PacketNumber: packetNum,
 			},
 		},
 	}
@@ -268,4 +309,35 @@ func EncodeVariableInt(length int) []byte {
 		enc, _ = strconv.ParseUint(fmt.Sprintf("01%s%s", zero, s), 2, 16)
 	}
 	return UintTo2byte(uint16(enc))
+}
+
+func NewQuicCryptoFrame(data []byte) QuicCryptoFrame {
+	return QuicCryptoFrame{
+		Type:   []byte{QuicFrameTypeCrypto},
+		Offset: []byte{0x00},
+		Length: EncodeVariableInt(len(data)),
+		Data:   data,
+	}
+}
+
+func SendQuicPacket(data []byte, clientPort, serverPort int) QuicRawPacket {
+	sendfd := NewUDPSocket(clientPort)
+	server := syscall.SockaddrInet4{
+		Port: serverPort,
+		Addr: [4]byte{127, 0, 0, 1},
+	}
+	syscall.Sendto(sendfd, data, 0, &server)
+
+	var packet QuicRawPacket
+	for {
+		recvBuf := make([]byte, 1500)
+		n, _, err := syscall.Recvfrom(sendfd, recvBuf, 0)
+		if err != nil {
+			log.Fatalf("read err : %v", err)
+		}
+		fmt.Printf("recv packet : %x\n", recvBuf[0:n])
+		packet = ParseRawQuicPacket(recvBuf[0:n], false)
+		break
+	}
+	return packet
 }

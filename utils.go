@@ -154,10 +154,10 @@ func extendArrByZero(data []byte, to int) []byte {
 }
 
 func AddPaddingFrame(data []byte, to int) []byte {
-	//var extend []byte
+	var extend []byte
 	for i := 0; i <= to; i++ {
-		data = append(data, 0x00)
+		extend = append(extend, 0x00)
 	}
-	//extend = append(extend, data...)
+	data = append(data, extend...)
 	return data
 }

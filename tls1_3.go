@@ -58,6 +58,7 @@ func setTLS13Extension(http2 bool) ([]byte, ECDHEKeys) {
 	// renagotiation_info
 	tlsExtension = append(tlsExtension, []byte{0xff, 0x01, 0x00, 0x01, 0x00}...)
 
+	// Application Layer Protocol Negotiation
 	if http2 {
 		tlsExtension = append(tlsExtension, []byte{0x00, 0x10, 0x00, 0x05, 0x00, 0x03, 0x02, 0x68, 0x32}...)
 	}

@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	//"github.com/lucas-clemente/quic-go"
+	"github.com/lucas-clemente/quic-go"
+	"github.com/lucas-clemente/quic-go/logging"
 	"io"
 	"log"
 	"os"
-	"tcpip/debug/quic-go"
 	"tcpip/debug/utils"
 )
 
@@ -22,7 +22,11 @@ func main() {
 		KeyLogWriter: w,
 	}
 
-	conn, err := quic.DialAddr("localhost:18443", tlsConf, nil)
+	quicconfig := &quic.Config{
+		Tracer: logging.NewMultiplexedTracer(),
+	}
+
+	conn, err := quic.DialAddr("localhost:18443", tlsConf, quicconfig)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -3,11 +3,10 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	//"github.com/lucas-clemente/quic-go"
+	"github.com/lucas-clemente/quic-go"
 	"io"
 	"log"
 	"os"
-	"tcpip/debug/quic-go"
 	"tcpip/debug/utils"
 )
 
