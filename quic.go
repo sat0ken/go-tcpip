@@ -119,7 +119,7 @@ func ParseRawQuicPacket(packet []byte, protected bool) (rawpacket QuicRawPacket)
 			RetryToken:         packet[0 : len(packet)-16],
 			RetryIntergrityTag: packet[len(packet)-16:],
 		}
-		fmt.Println("Parse Retry Packet, token is %x\n", retryPacket.RetryToken)
+		//fmt.Println("Parse Retry Packet, token is %x\n", retryPacket.RetryToken)
 		rawpacket = QuicRawPacket{
 			QuicHeader: commonHeader,
 			QuicFrames: []interface{}{retryPacket},
@@ -173,14 +173,17 @@ func QuicHeaderToProtect(header, sample, hp []byte) []byte {
 	// ヘッダの最初のバイトを保護
 	header[0] ^= mask[0] & 0x0f
 
-	a := header[18:22]
+	// Packet Numberの0byte目がある場所
+	pnumStartOffset := len(header) - 4
+
+	a := header[pnumStartOffset : pnumStartOffset+4]
 	b := mask[1:5]
 	for i, _ := range a {
 		a[i] ^= b[i]
 	}
 	// パケット番号をセットして保護する
 	for i, _ := range a {
-		header[18+i] = a[i]
+		header[pnumStartOffset+i] = a[i]
 	}
 	return header
 }

@@ -5,8 +5,14 @@ import (
 	"tcpip"
 )
 
+type QuicInfo struct {
+	Keyblock    tcpip.QuicKeyBlock
+	ClientHello []byte
+	RetryToken  []byte
+}
+
 // InitalPacketの暗号化
-func _() {
+func sendInitialPacket() QuicInfo {
 	// sampleのDestination接続ID
 	//destconnID := []byte{0xf2, 0xc0, 0x28, 0xbb, 0x71, 0x53, 0x35, 0x74, 0x0e, 0xc0, 0x1d, 0xe2, 0x4d, 0x74}
 	destconnID := []byte{0x83, 0x94, 0xC8, 0xF0, 0x3E, 0x51, 0x57, 0x08}
@@ -24,7 +30,7 @@ func _() {
 	cryptoByte := tcpip.ToPacket(crypto)
 	//fmt.Printf("crypto frame is %x\n", cryptoByte)
 
-	quicpacket := tcpip.NewQuicLongHeader(destconnID, 2, 4)
+	quicpacket := tcpip.NewQuicLongHeader(destconnID, 0, 4)
 
 	header := quicpacket.QuicHeader.(tcpip.QuicLongCommonHeader)
 	initPacket := quicpacket.QuicFrames[0].(tcpip.InitialPacket)
@@ -38,16 +44,17 @@ func _() {
 		len(initPacket.PacketNumber) - len(cryptoByte) - 16 - 2
 	//fmt.Printf("header is %d, pnum len is %d, payload len is %d\n", len(tcpip.ToPacket(header)),
 	//	4, 322)
-	fmt.Printf("paddingLength is %d\n", paddingLength)
 
 	// ゼロ埋めしてPayloadをセット
 	initPacket.Payload = tcpip.AddPaddingFrame(cryptoByte, paddingLength)
+	//fmt.Printf("paddingLength is %d, %d\n", paddingLength, len(initPacket.Payload))
+	//fmt.Printf("After padding payload is %x\n", initPacket.Payload)
 
 	// PayloadのLength + Packet番号のLength + AEADの認証タグ長=16
 	length := len(initPacket.Payload) + len(initPacket.PacketNumber) + 16
 	// 可変長整数のエンコードをしてLengthをセット
 	initPacket.Length = tcpip.EncodeVariableInt(length)
-	//
+
 	headerByte := tcpip.ToPacket(header)
 	// set Token Length
 	headerByte = append(headerByte, 0x00)
@@ -71,25 +78,73 @@ func _() {
 
 	recvPacket := tcpip.SendQuicPacket(packet, 42237, 18443)
 	retry := recvPacket.QuicFrames[0].(tcpip.RetryPacket)
-	_ = retry
 
+	return QuicInfo{
+		Keyblock:    keyblock,
+		ClientHello: cryptoByte,
+		RetryToken:  retry.RetryToken,
+	}
 }
 
 func main() {
-	destconnID := []byte{0x54, 0xd7, 0x6f, 0x7d}
-	//keyblock := tcpip.CreateQuicInitialSecret(destconnID)
-	plaintext := tcpip.StrtoByte("0600413e0100013a03030000000000000000000000000000000000000000000000000000000000000000000026c02bc02fc02cc030cca9cca8c009c013c00ac014009c009d002f0035c012000a130113021303010000eb0000000e000c0000096c6f63616c686f7374000500050100000000000a000a0008001d001700180019000b00020100000d001a0018080404030807080508060401050106010503060302010203ff0100010000100014001211717569632d6563686f2d6578616d706c6500120000002b0003020304003300260024001d00202fe57da347cd62431528daac5fbb290730fff684afc4cfc2ed90995f58cb3b74003900484b010edc0dfc077f19ee98b780fb6cc56a0504800800000604800800000704800800000404800c00000802406409024064010480007530030245ac0b011a0c000e01040f00200100")
+	// Initial
+	quicInfo := sendInitialPacket()
 
-	quicpacket := tcpip.NewQuicLongHeader(destconnID, 1, 2)
+	// 以下でRetry TokenをセットしてInitial Packetを送信し直す
+	destconnID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	keyblock := tcpip.CreateQuicInitialSecret(destconnID)
+	quicpacket := tcpip.NewQuicLongHeader(destconnID, 1, 4)
 
 	header := quicpacket.QuicHeader.(tcpip.QuicLongCommonHeader)
 	initPacket := quicpacket.QuicFrames[0].(tcpip.InitialPacket)
-	initPacket.Token = tcpip.StrtoByte("2c5f708f6ecda18764fd65881389a0d13322d8f04cc74773a65a407e8c2d8ee68ce4cf39678e054dd8859bcd9393c8a7b5a01b6c9a2c783c7a8111b3c0c465065084d115e1b53637880aa38f6ca1525c74989caed0eff79cf8362eea")
-	initPacket.TokenLength = tcpip.EncodeVariableInt(92)
-	fmt.Printf("initPacket is %+v\n", initPacket)
+	initPacket.Token = quicInfo.RetryToken
+	initPacket.TokenLength = tcpip.EncodeVariableInt(len(initPacket.Token))
+
+	//fmt.Printf("initPacket is %d\n", len(initPacket.Token))
+
+	//paddingLength := 1200 - 5 - len(initPacket.PacketNumber) -
+	//	len(header.SourceConnID) - len(initPacket.Token) -
+	//	16 - 2 - len(quicInfo.ClientHello) - 16
+	//current := len(tcpip.ToPacket(header)) + len(initPacket.PacketNumber) + len(initPacket.Token) + len(quicInfo.ClientHello) + 16 + 2
+	//fmt.Printf("current length is %+v\n", current)
 
 	paddingLength := 1200 - len(tcpip.ToPacket(header)) -
-		len(initPacket.PacketNumber) - len(initPacket.Token) - len(plaintext) - 16 - 2
+		len(initPacket.PacketNumber) - len(quicInfo.ClientHello) - len(initPacket.Token) - 16 - 2
+	fmt.Printf("header is %+v\n", header)
+	//fmt.Printf("padding length is %d, clienthello is %d\n", paddingLength, len(quicInfo.ClientHello))
 
-	fmt.Printf("paddingLength is %d\n", paddingLength)
+	// ゼロ埋めしてPayloadをセット
+	initPacket.Payload = tcpip.AddPaddingFrame(quicInfo.ClientHello, paddingLength)
+	//fmt.Printf("After padding payload is %x\n", initPacket.Payload)
+
+	// PayloadのLength + Packet番号のLength + AEADの認証タグ長=16
+	length := len(initPacket.Payload) + len(initPacket.PacketNumber) + 16
+	// 可変長整数のエンコードをしてLengthをセット
+	initPacket.Length = tcpip.EncodeVariableInt(length)
+
+	headerByte := tcpip.ToPacket(header)
+	// Source Connection ID Lengthの0を入れる
+	//headerByte = append(headerByte, 0x00)
+	headerByte = append(headerByte, initPacket.TokenLength...)
+	headerByte = append(headerByte, initPacket.Token...)
+	headerByte = append(headerByte, initPacket.Length...)
+	headerByte = append(headerByte, initPacket.PacketNumber...)
+
+	enctext := tcpip.EncryptQuicPayload(initPacket.PacketNumber, headerByte, initPacket.Payload, keyblock)
+	fmt.Printf("headerByte is %x\n", headerByte)
+	protectHeader := tcpip.QuicHeaderToProtect(headerByte, enctext[0:16], keyblock.ClientHeaderProtection)
+
+	//ヘッダとデータで送信するパケットを生成
+	packet := protectHeader
+	packet = append(packet, enctext...)
+	fmt.Printf("packet length is %d\n", len(packet))
+
+	tcpip.SendQuicPacket(packet, 42237, 18443)
+
+}
+
+func _() {
+	destconnID := tcpip.StrtoByte("c300000001088394c8f03e5157080000449e00000002")
+	pnumStartOffset := len(destconnID) - 4
+	fmt.Printf("%x\n", destconnID[pnumStartOffset:pnumStartOffset+4])
 }
