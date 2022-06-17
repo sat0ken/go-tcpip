@@ -142,9 +142,3 @@ func main() {
 	tcpip.SendQuicPacket(packet, 42237, 18443)
 
 }
-
-func _() {
-	destconnID := tcpip.StrtoByte("c300000001088394c8f03e5157080000449e00000002")
-	pnumStartOffset := len(destconnID) - 4
-	fmt.Printf("%x\n", destconnID[pnumStartOffset:pnumStartOffset+4])
-}

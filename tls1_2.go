@@ -484,10 +484,10 @@ func ParseTLSPacket(packet []byte) ([]TLSProtocol, []byte) {
 				Length:          v[0:2],
 			}
 			//ServerHelloDoneの4byteだけ
-			tls := ParseTLSHandshake(v[2:6], TLS1_2)
+			tlsProto := ParseTLSHandshake(v[2:6], TLS1_2)
 			proto := TLSProtocol{
 				RHeader:           rHeader,
-				HandshakeProtocol: tls,
+				HandshakeProtocol: tlsProto,
 			}
 			protocolsByte = append(protocolsByte, v[2:6]...)
 			protocols = append(protocols, proto)

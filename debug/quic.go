@@ -20,7 +20,7 @@ func _() {
 	//fmt.Printf("decode initpacket Length is %x\n", tcpip.DecodeVariableInt([]int{int(initpacket.Length[0]), int(initpacket.Length[1])}))
 
 	keyblock := tcpip.CreateQuicInitialSecret(commonHeader.DestConnID)
-	initPacketByte = tcpip.QuicPacketToUnprotect(commonHeader, initpacket, initPacketByte, keyblock)
+	initPacketByte = tcpip.QuicPacketToUnprotect(commonHeader, initpacket, initPacketByte, keyblock.ClientHeaderProtection)
 
 	//ヘッダ保護を解除したパケットをパースする
 	unprotectInit := tcpip.ParseRawQuicPacket(initPacketByte, false)

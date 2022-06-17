@@ -1,7 +1,11 @@
 package tcpip
 
 const (
-	QuicFrameTypeCrypto = 0x06
+	QuicFrameTypePing          = 0x01
+	QuicFrameTypeACK           = 0x02
+	QuicFrameTypeCrypto        = 0x06
+	QuicFrameTypeNewToken      = 0x07
+	QuicFrameTypeHandShakeDone = 0x1e
 )
 
 var initialSalt = []byte{
@@ -88,4 +92,12 @@ type QuicCryptoFrame struct {
 	Offset []byte
 	Length []byte
 	Data   []byte
+}
+
+type QuicACKFrame struct {
+	Type                []byte
+	LargestAcknowledged []byte
+	AckDelay            []byte
+	AckRangeCount       []byte
+	FirstAckRange       []byte
 }

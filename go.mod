@@ -9,7 +9,10 @@ require (
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
 )
 
-replace github.com/lucas-clemente/quic-go => ./debug/quic-go
+replace (
+	github.com/lucas-clemente/quic-go => ./debug/quic-go
+	github.com/marten-seemann/qtls-go1-17 => ./debug/qtls-go1-17
+)
 
 require (
 	github.com/cheekybits/genny v1.0.0 // indirect

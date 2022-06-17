@@ -23,7 +23,7 @@ func main() {
 			KeyLogWriter: w,
 		},
 	}
-	req, _ := http.NewRequest("GET", "https://quic.rocks:4433", nil)
+	req, _ := http.NewRequest("GET", "https://google.com", nil)
 
 	resp, err := r.RoundTrip(req)
 	if err != nil {

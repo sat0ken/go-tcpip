@@ -19,3 +19,4 @@ debug/*.pem
 tls-server
 https-server
 debug/quic-go
+debug/qtls-go1-17
