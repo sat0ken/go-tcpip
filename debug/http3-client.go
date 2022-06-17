@@ -17,13 +17,14 @@ func main() {
 	w := os.Stdout
 	r := http3.RoundTripper{
 		TLSClientConfig: &tls.Config{
-			MinVersion:   tls.VersionTLS13,
-			MaxVersion:   tls.VersionTLS13,
-			Rand:         utils.ZeroSource{},
-			KeyLogWriter: w,
+			MinVersion:         tls.VersionTLS13,
+			MaxVersion:         tls.VersionTLS13,
+			Rand:               utils.ZeroSource{},
+			KeyLogWriter:       w,
+			InsecureSkipVerify: true,
 		},
 	}
-	req, _ := http.NewRequest("GET", "https://google.com", nil)
+	req, _ := http.NewRequest("GET", "https://142.251.42.174", nil)
 
 	resp, err := r.RoundTrip(req)
 	if err != nil {

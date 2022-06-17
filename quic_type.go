@@ -101,3 +101,10 @@ type QuicACKFrame struct {
 	AckRangeCount       []byte
 	FirstAckRange       []byte
 }
+
+type UDPInfo struct {
+	ClientAddr [4]byte
+	ClientPort int
+	ServerAddr [4]byte
+	ServerPort int
+}

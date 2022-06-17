@@ -106,14 +106,14 @@ func NewSockStreemSocket() int {
 	return sock
 }
 
-func NewUDPSocket(clientPort int) int {
+func NewClientUDPSocket(port int, addr [4]byte) int {
 	sock, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_IP)
 	if err != nil {
 		log.Fatalf("create socket for UDP is err : %v\n", err)
 	}
 	client := syscall.SockaddrInet4{
-		Port: clientPort,
-		Addr: [4]byte{127, 0, 0, 1},
+		Port: port,
+		Addr: addr,
 	}
 	syscall.Bind(sock, &client)
 

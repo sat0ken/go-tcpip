@@ -336,13 +336,16 @@ func NewQuicCryptoFrame(data []byte) QuicCryptoFrame {
 	}
 }
 
-func SendQuicPacket(data []byte, clientPort, serverPort int) QuicRawPacket {
-	sendfd := NewUDPSocket(clientPort)
+func SendQuicPacket(data []byte, udpinfo UDPInfo) QuicRawPacket {
+	sendfd := NewClientUDPSocket(udpinfo.ClientPort, udpinfo.ClientAddr)
 	server := syscall.SockaddrInet4{
-		Port: serverPort,
-		Addr: [4]byte{127, 0, 0, 1},
+		Port: udpinfo.ServerPort,
+		Addr: udpinfo.ServerAddr,
 	}
-	syscall.Sendto(sendfd, data, 0, &server)
+	err := syscall.Sendto(sendfd, data, 0, &server)
+	if err != nil {
+		log.Fatalf("Can't UDP data to server : %v", err)
+	}
 
 	var packet QuicRawPacket
 	for {

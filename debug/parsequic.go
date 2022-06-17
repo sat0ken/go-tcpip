@@ -38,8 +38,11 @@ func main() {
 	//fmt.Printf("initpacket is %+v\n", unprotextInitpacket)
 	plaintext := tcpip.DecryptQuicPayload(unprotectInitpacket.PacketNumber, add, unprotectInitpacket.Payload, keyblock)
 	frames := tcpip.SkipPaddingFrame(plaintext)
-	for _, v := range frames {
-		fmt.Printf("%+v\n", tcpip.ParseQuicFrame(v))
-	}
+	//for _, v := range frames {
+	//	fmt.Printf("%+v\n", tcpip.ParseQuicFrame(v))
+	//}
+	shelloByte := tcpip.ParseQuicFrame(frames[1]).(tcpip.QuicCryptoFrame)
+	shello := tcpip.ParseQuicTLSHandshake(shelloByte.Data).(tcpip.ServerHello)
+	fmt.Printf("%+v\n", shello.TLSExtensions[0].Value)
 
 }

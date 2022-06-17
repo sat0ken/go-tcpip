@@ -1,6 +1,8 @@
 package tcpip
 
-import "crypto/tls"
+import (
+	"crypto/tls"
+)
 
 func (*ClientHello) NewQuicClientHello() (TLSInfo, []byte) {
 	var tlsinfo TLSInfo
@@ -74,9 +76,10 @@ func setQuicTLSExtension() ([]byte, ECDHEKeys) {
 	var tlsExtensionByte []byte
 
 	// server_name
-	tlsExtension = append(tlsExtension, []byte{0x00, 0x00, 0x00, 0x0e, 0x00, 0x0c, 0x00, 0x00,
-		0x09, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x68, 0x6f,
-		0x73, 0x74}...)
+	tlsExtension = append(tlsExtension, []byte{
+		0x00, 0x00, 0x00, 0x0f, 0x00, 0x0d, 0x00, 0x00,
+		0x0a, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e,
+		0x63, 0x6f, 0x6d}...)
 
 	//　status_reqeust
 	tlsExtension = append(tlsExtension, []byte{0x00, 0x05, 0x00, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00}...)
@@ -99,9 +102,7 @@ func setQuicTLSExtension() ([]byte, ECDHEKeys) {
 	tlsExtension = append(tlsExtension, []byte{0xff, 0x01, 0x00, 0x01, 0x00}...)
 
 	// Application Layer Protocol Negotiation
-	tlsExtension = append(tlsExtension, []byte{0x00, 0x10, 0x00, 0x14, 0x00, 0x12, 0x11, 0x71,
-		0x75, 0x69, 0x63, 0x2d, 0x65, 0x63, 0x68, 0x6f,
-		0x2d, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65}...)
+	tlsExtension = append(tlsExtension, []byte{0x00, 0x10, 0x00, 0x05, 0x00, 0x03, 0x02, 0x68, 0x33}...)
 
 	// signed_certificate_timestamp
 	tlsExtension = append(tlsExtension, []byte{0x00, 0x12, 0x00, 0x00}...)
@@ -124,4 +125,44 @@ func setQuicTLSExtension() ([]byte, ECDHEKeys) {
 	tlsExtensionByte = append(tlsExtensionByte, tlsExtension...)
 
 	return tlsExtensionByte, clientkey
+}
+
+func ParseQuicTLSHandshake(packet []byte) interface{} {
+	var i interface{}
+
+	switch packet[0] {
+	case HandshakeTypeServerHello:
+		hello := ServerHello{
+			HandshakeType:     packet[0:1],
+			Length:            packet[1:4],
+			Version:           packet[4:6],
+			Random:            packet[6:38],
+			SessionIDLength:   packet[38:39],
+			CipherSuites:      packet[39:41],
+			CompressionMethod: packet[41:42],
+			ExtensionLength:   packet[42:44],
+		}
+		// Memo: Googleのサーバはkey_share, supported_versionの順番でTLS Extensionsが送られてくる模様
+		// Todo: Extensionsをパースする関数を作らないと順番入れ替ってパースできなくて草
+		// key_share
+		hello.TLSExtensions = append(hello.TLSExtensions, TLSExtensions{
+			Type:   packet[44:46],
+			Length: packet[46:48],
+			Value: map[string]interface{}{
+				"Group":             packet[48:50],
+				"KeyExchangeLength": packet[50:52],
+				"KeyExchange":       packet[52:84],
+			},
+		})
+		// supported_versions
+		hello.TLSExtensions = append(hello.TLSExtensions, TLSExtensions{
+			Type:   packet[84:86],
+			Length: packet[86:88],
+			Value:  packet[88:90],
+		})
+		i = hello
+
+	}
+
+	return i
 }

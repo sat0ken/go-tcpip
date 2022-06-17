@@ -18,6 +18,20 @@ type LocalIpMacAddr struct {
 	Index        int
 }
 
+func GetLocalIpAddr(ifname string) [4]byte {
+	localif, err := getLocalIpAddr(ifname)
+	if err != nil {
+		log.Fatalf("Get local interface info is err : %v", err)
+	}
+	ipaddr := [4]byte{
+		localif.LocalIpAddr[0],
+		localif.LocalIpAddr[1],
+		localif.LocalIpAddr[2],
+		localif.LocalIpAddr[3],
+	}
+	return ipaddr
+}
+
 // ローカルのmacアドレスとIPを返す
 func getLocalIpAddr(ifname string) (localif LocalIpMacAddr, err error) {
 	nif, err := net.InterfaceByName(ifname)
@@ -52,6 +66,10 @@ func randomByte(num int) []byte {
 	b := make([]byte, num)
 	rand.Read(b)
 	return b
+}
+
+func RandomByte(num int) []byte {
+	return randomByte(num)
 }
 
 // クライアント側で利用可能な暗号スイートのリストを返す
