@@ -48,6 +48,10 @@ func setQuicTransportParameters() []byte {
 	var quicParams []byte
 	var quicParamsBytes []byte
 
+	// GREASE
+	quicParams = append(quicParams, []byte{0x42, 0x0b, 0x08, 0x6d, 0xa0, 0x09, 0x64, 0x02,
+		0xa2, 0x7e, 0xe0}...)
+
 	quicParams = append(quicParams, initialMaxStreamDataBidiLocal...)
 	quicParams = append(quicParams, initialMaxStreamDataBidiRemote...)
 	quicParams = append(quicParams, initialMaxStreamDataUni...)
@@ -56,6 +60,8 @@ func setQuicTransportParameters() []byte {
 	quicParams = append(quicParams, initialMaxStreamsUni...)
 	quicParams = append(quicParams, maxIdleTimeout...)
 	quicParams = append(quicParams, maxUdpPayloadSize...)
+	// GREASE
+	quicParams = append(quicParams, []byte{0x0b, 0x01, 0x1a}...)
 	quicParams = append(quicParams, disableActiveMigration...)
 	quicParams = append(quicParams, activeConnectionIdLimit...)
 	quicParams = append(quicParams, initialSourceConnectionId...)

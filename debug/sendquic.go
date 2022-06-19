@@ -11,6 +11,7 @@ type QuicInfo struct {
 	RetryToken  []byte
 }
 
+var quicrock = [4]byte{216, 155, 158, 183}
 var googleAddr = [4]byte{142, 251, 42, 174}
 var localAddr = [4]byte{127, 0, 0, 1}
 
@@ -87,8 +88,8 @@ func sendInitialPacket() tcpip.QuicRawPacket {
 		ClientPort: 42237,
 		ClientAddr: tcpip.GetLocalIpAddr("wlp3s0"),
 		//ClientAddr: localAddr,
-		ServerPort: 443,
-		ServerAddr: googleAddr,
+		ServerPort: 433,
+		ServerAddr: aioquic,
 	})
 	//retry := recvPacket.QuicFrames[0].(tcpip.RetryPacket)
 

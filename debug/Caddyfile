@@ -1,0 +1,18 @@
+{
+    debug
+    https_port 18843
+    default_bind 127.0.0.1
+    servers {
+        protocol {
+            experimental_http3
+        }
+    }
+    pki {
+        ca local {
+            root {
+                cert /work/gomi/go-tcpip/debug/my-tls.pem
+                key /work/gomi/go-tcpip/debug/my-tls-key.pem
+            }
+        }
+    }
+}
