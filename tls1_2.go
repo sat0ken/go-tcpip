@@ -34,7 +34,7 @@ func NewTLSRecordHeader(ctype string, length uint16) []byte {
 	return b
 }
 
-func (*ClientHello) NewClientHello(tlsversion []byte, http2 bool) (TLSInfo, []byte) {
+func (*ClientHello) NewClientHello(tlsversion []byte, http2 bool, cihpersuite []byte) (TLSInfo, []byte) {
 	var tlsinfo TLSInfo
 	handshake := ClientHello{
 		HandshakeType:      []byte{HandshakeTypeClientHello},
@@ -45,9 +45,9 @@ func (*ClientHello) NewClientHello(tlsversion []byte, http2 bool) (TLSInfo, []by
 		SessionID:          noRandomByte(32),
 		CipherSuitesLength: []byte{0x00, 0x02},
 		// TLS_CHACHA20_POLY1305_SHA256
-		CipherSuites: []byte{0x13, 0x03},
+		CipherSuites: cihpersuite,
 		// TLS_RSA_WITH_AES_128_GCM_SHA256
-		//CipherSuites: []byte{0x13, 0x01},
+		// CipherSuites: []byte{0x13, 0x01},
 		// ECDHE-RSA-AES128-GCM-SHA256
 		//CipherSuites:      []byte{0xC0, 0x2F},
 		CompressionLength: []byte{0x01},

@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"golang.org/x/crypto/curve25519"
@@ -37,7 +38,8 @@ func main() {
 
 	var hello tcpip.ClientHello
 	// ClientHelloメッセージを作成
-	tlsinfo, hellobyte := hello.NewClientHello(tcpip.TLS1_3, false)
+
+	tlsinfo, hellobyte := hello.NewClientHello(tcpip.TLS1_3, false, tcpip.UintTo2byte(tls.TLS_CHACHA20_POLY1305_SHA256))
 	// メッセージを送信
 	syscall.Write(sock, hellobyte)
 

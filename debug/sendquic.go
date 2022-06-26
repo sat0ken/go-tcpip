@@ -89,7 +89,7 @@ func sendInitialPacket() tcpip.QuicRawPacket {
 		ClientAddr: tcpip.GetLocalIpAddr("wlp3s0"),
 		//ClientAddr: localAddr,
 		ServerPort: 433,
-		ServerAddr: aioquic,
+		ServerAddr: quicrock,
 	})
 	//retry := recvPacket.QuicFrames[0].(tcpip.RetryPacket)
 

@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
-	tls "crypto/hacktls"
 	"crypto/rsa"
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -13,11 +13,12 @@ import (
 	"tcpip"
 )
 
-// TLS1.2ハンドシェイク
+// TLS1.2ハンドシェイク+クライアント認証
 func main() {
+	clientCert := tcpip.ReadClientCertificate()
 
 	sock := tcpip.NewSockStreemSocket()
-	addr := tcpip.SetSockAddrInet4(tcpip.Iptobyte("127.0.0.1"), 10443)
+	addr := tcpip.SetSockAddrInet4(tcpip.Iptobyte(LOCALIP), LOCALPORT)
 	err := syscall.Connect(sock, &addr)
 	if err != nil {
 		log.Fatalf("connect err : %v\n", err)
@@ -78,9 +79,9 @@ func main() {
 	fmt.Printf("ServerRandom : %x\n", tlsinfo.MasterSecretInfo.ServerRandom)
 
 	//certificateメッセージを作る
-	//var clientCertMessage tcpip.ClientCertificate
-	//clientCertMessageBytes := clientCertMessage.NewClientCertificate(clientCert)
-	//tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, clientCertMessageBytes[5:]...)
+	var clientCertMessage tcpip.ClientCertificate
+	clientCertMessageBytes := clientCertMessage.NewClientCertificate(clientCert)
+	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, clientCertMessageBytes[5:]...)
 
 	// ClientKeyExchangeメッセージを作る
 	// premaster secretをサーバの公開鍵で暗号化する
@@ -94,9 +95,9 @@ func main() {
 	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, clientKeyExchangeBytes[5:]...)
 
 	// CertificateVerifyメッセージを作る
-	//var certVerify tcpip.CertificateVerify
-	//certVerifyBytes := certVerify.NewCertificateVerify(clientCert, tlsinfo.Handshakemessages)
-	//tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, certVerifyBytes[5:]...)
+	var certVerify tcpip.CertificateVerify
+	certVerifyBytes := certVerify.NewCertificateVerify(clientCert, tlsinfo.Handshakemessages)
+	tlsinfo.Handshakemessages = append(tlsinfo.Handshakemessages, certVerifyBytes[5:]...)
 
 	// ChangeCipherSpecメッセージを作る
 	changeCipher := tcpip.NewChangeCipherSpec()
@@ -119,7 +120,9 @@ func main() {
 
 	// ClientKeyexchange, ChangeCipehrspec, ClientFinsihedを全部まとめる
 	var all []byte
+	all = append(all, clientCertMessageBytes...)
 	all = append(all, clientKeyExchangeBytes...)
+	all = append(all, certVerifyBytes...)
 	all = append(all, changeCipher...)
 	all = append(all, encryptFin...)
 
