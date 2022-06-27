@@ -24,7 +24,8 @@ func main() {
 			InsecureSkipVerify: true,
 		},
 	}
-	req, _ := http.NewRequest("GET", "https://142.251.42.174", nil)
+    req, _ := http.NewRequest("GET", "https://127.0.0.1:18443", nil)
+	//req, _ := http.NewRequest("GET", "https://142.251.42.174", nil)
 
 	resp, err := r.RoundTrip(req)
 	if err != nil {
