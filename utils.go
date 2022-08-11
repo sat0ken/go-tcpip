@@ -177,5 +177,6 @@ func AddPaddingFrame(data []byte, to int) []byte {
 		extend = append(extend, 0x00)
 	}
 	data = append(data, extend...)
-	return data
+	//extend = append(extend, data...)
+	return extend
 }

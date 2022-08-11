@@ -23,6 +23,9 @@ func sendInitialPacket() tcpip.QuicRawPacket {
 		0xf7, 0x02, 0x02, 0xff, 0x24, 0x9a, 0xe1, 0x0d,
 		0xeb, 0x76, 0xc9, 0xb7, 0xe5, 0x85, 0x88, 0xc0,
 	}
+	sourceconnID := []byte{
+		0x74, 0xcf, 0xe6, 0x47, 0x10, 0x1c, 0xc7, 0x8f,
+	}
 	//destconnID := tcpip.RandomByte(16)
 	keyblock := tcpip.CreateQuicInitialSecret(destconnID)
 	// A.2. クライアントの初期 Crypto Frame
@@ -31,14 +34,14 @@ func sendInitialPacket() tcpip.QuicRawPacket {
 	//plaintext := tcpip.StrtoByte("010000ed0303ebf8fa56f12939b9584a3896472ec40bb863cfd3e86804fe3a47f06a2b69484c00000413011302010000c000000010000e00000b6578616d706c652e636f6dff01000100000a00080006001d0017001800100007000504616c706e000500050100000000003300260024001d00209370b2c9caa47fbabaf4559fedba753de171fa71f50f1ce15d43e994ec74d748002b0003020304000d0010000e0403050306030203080408050806002d00020101001c00024001003900320408ffffffffffffffff05048000ffff07048000ffff0801100104800075300901100f088394c8f03e51570806048000ffff")
 	// payloadを作る
 	var clienthello tcpip.ClientHello
-	tlsinfo, clientHelloPacket := clienthello.NewQuicClientHello()
+	tlsinfo, clientHelloPacket := clienthello.NewQuicClientHello(sourceconnID)
 	_ = tlsinfo
 
 	crypto := tcpip.NewQuicCryptoFrame(clientHelloPacket)
 	cryptoByte := tcpip.ToPacket(crypto)
 	//fmt.Printf("crypto frame is %x\n", cryptoByte)
 
-	quicpacket := tcpip.NewQuicLongHeader(destconnID, 0, 4)
+	quicpacket := tcpip.NewQuicLongHeader(destconnID, sourceconnID, 0, 4)
 
 	header := quicpacket.QuicHeader.(tcpip.QuicLongCommonHeader)
 	initPacket := quicpacket.QuicFrames[0].(tcpip.InitialPacket)
@@ -48,8 +51,8 @@ func sendInitialPacket() tcpip.QuicRawPacket {
 	//paddingLength := 1200 - 5 - len(initPacket.PacketNumber) -
 	//	len(header.SourceConnID) - len(initPacket.Token) -
 	//	16 - 2 - len(plaintext) - 16
-	paddingLength := 1200 - len(tcpip.ToPacket(header)) -
-		len(initPacket.PacketNumber) - len(cryptoByte) - 16 - 2
+	paddingLength := 1252 - len(tcpip.ToPacket(header)) -
+		len(initPacket.PacketNumber) - len(cryptoByte) - 16 - 4
 	//fmt.Printf("header is %d, pnum len is %d, payload len is %d\n", len(tcpip.ToPacket(header)),
 	//	4, 322)
 
@@ -86,10 +89,10 @@ func sendInitialPacket() tcpip.QuicRawPacket {
 
 	recvPacket := tcpip.SendQuicPacket(packet, tcpip.UDPInfo{
 		ClientPort: 42237,
-		ClientAddr: tcpip.GetLocalIpAddr("wlp3s0"),
-		//ClientAddr: localAddr,
-		ServerPort: 433,
-		ServerAddr: quicrock,
+		//ClientAddr: tcpip.GetLocalIpAddr("wlp3s0"),
+		ClientAddr: localAddr,
+		ServerPort: 18433,
+		ServerAddr: localAddr,
 	})
 	//retry := recvPacket.QuicFrames[0].(tcpip.RetryPacket)
 

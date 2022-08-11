@@ -250,7 +250,7 @@ func ParseQuicFrame(packet []byte) (frames interface{}) {
 	return frames
 }
 
-func NewQuicLongHeader(destConnID []byte, pnum, pnumlen uint) QuicRawPacket {
+func NewQuicLongHeader(destConnID, sourceConnID []byte, pnum, pnumlen uint) QuicRawPacket {
 	// とりあえず2byte
 	var packetNum []byte
 	if pnumlen == 2 {
@@ -281,7 +281,8 @@ func NewQuicLongHeader(destConnID []byte, pnum, pnumlen uint) QuicRawPacket {
 		Version:            []byte{0x00, 0x00, 0x00, 0x01},
 		DestConnIDLength:   []byte{byte(len(destConnID))},
 		DestConnID:         destConnID,
-		SourceConnIDLength: []byte{0x00},
+		SourceConnIDLength: []byte{byte(len(sourceConnID))},
+		SourceConnID:       sourceConnID,
 	}
 
 	return QuicRawPacket{

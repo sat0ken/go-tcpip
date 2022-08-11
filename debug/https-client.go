@@ -16,8 +16,8 @@ func main() {
 	w := os.Stdout
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			MaxVersion:   tls.VersionTLS12,
+			MinVersion:   tls.VersionTLS13,
+			MaxVersion:   tls.VersionTLS13,
 			Rand:         utils.ZeroSource{},
 			KeyLogWriter: w,
 			CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_GCM_SHA256},

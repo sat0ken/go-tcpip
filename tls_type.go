@@ -65,6 +65,7 @@ type ClientHello struct {
 	CipherSuites       []byte
 	CompressionLength  []byte
 	CompressionMethod  []byte
+	ExtensionLength    []byte
 	Extensions         []byte
 }
 

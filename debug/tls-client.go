@@ -19,7 +19,7 @@ func main() {
 		KeyLogWriter: w,
 		// 楕円曲線のタイプをP256に設定
 		// CurvePreferences: []tls.CurveID{tls.CurveP256, tls.CurveID(tls2.X25519)},
-		CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_GCM_SHA256},
+		CipherSuites: []uint16{tls.TLS_AES_128_GCM_SHA256},
 		//CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
 	}
 	conn, err := tls.Dial("tcp", "127.0.0.1:8443", config)

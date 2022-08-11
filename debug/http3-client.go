@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/lucas-clemente/quic-go"
 	"github.com/lucas-clemente/quic-go/http3"
 	"io/ioutil"
 	"log"
@@ -23,8 +24,11 @@ func main() {
 			KeyLogWriter:       w,
 			InsecureSkipVerify: true,
 		},
+		QuicConfig: &quic.Config{
+			ConnectionIDLength: 8,
+		},
 	}
-    req, _ := http.NewRequest("GET", "https://127.0.0.1:18443", nil)
+	req, _ := http.NewRequest("GET", "https://127.0.0.1:18443", nil)
 	//req, _ := http.NewRequest("GET", "https://142.251.42.174", nil)
 
 	resp, err := r.RoundTrip(req)
