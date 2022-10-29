@@ -9,16 +9,17 @@ require (
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
 )
 
-replace (
-	github.com/lucas-clemente/quic-go => ./debug/quic-go
-	github.com/marten-seemann/qtls-go1-17 => ./debug/qtls-go1-17
-)
+//replace (
+//	github.com/lucas-clemente/quic-go => ./debug/quic-go
+//	github.com/marten-seemann/qtls-go1-17 => ./debug/qtls-go1-17
+//	github.com/marten-seemann/qpack => ./debug/qpack
+//)
 
 require (
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
-	github.com/marten-seemann/qpack v0.2.1 // indirect
+	//github.com/marten-seemann/qpack v0.2.1 // indirect
 	github.com/marten-seemann/qtls-go1-16 v0.1.5 // indirect
 	github.com/marten-seemann/qtls-go1-17 v0.1.2 // indirect
 	github.com/marten-seemann/qtls-go1-18 v0.1.2 // indirect
