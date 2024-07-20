@@ -12,7 +12,7 @@ import (
 
 // https://gist.github.com/denji/12b3a568f092ab951456
 func main() {
-	cert, err := tls.LoadX509KeyPair("./my-tls.pem", "./my-tls-key.pem")
+	cert, err := tls.LoadX509KeyPair("./my-tls.com+2.pem", "./my-tls.com+2-key.pem")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -21,7 +21,7 @@ func main() {
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		Rand:         utils.ZeroSource{}, // for example only; don't do this.
-		MinVersion:   tls.VersionTLS13,
+		MinVersion:   tls.VersionTLS12,
 		MaxVersion:   tls.VersionTLS13,
 		CipherSuites: []uint16{tls.TLS_RSA_WITH_AES_128_GCM_SHA256},
 		//CurvePreferences: []tls.CurveID{tls.X25519},
